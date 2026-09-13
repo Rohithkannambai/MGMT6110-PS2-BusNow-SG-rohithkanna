@@ -15619,3 +15619,16 @@ I also tested the production product on my phone. The five stop choices were usa
 
 **Action:**  
 I kept the existing responsive design because the deployed product worked for both a public browser session and the intended mobile use case.
+
+### Late-night empty-state verification
+
+I checked the production product again late at night when bus services had reduced.
+
+For one of the selected stops, the live product displayed:
+
+“No upcoming buses are currently reported for this stop. Choose another nearby stop or check again later.”
+
+This was a genuine EMPTY state from the live product rather than a mocked or deliberately broken response.
+
+**Action:**  
+I kept the existing empty-state handling because the production test showed that it worked when the real source naturally returned no upcoming arrivals. No code change was needed.
