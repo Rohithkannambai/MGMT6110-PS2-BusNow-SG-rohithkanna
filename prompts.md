@@ -15586,3 +15586,14 @@ I then opened the production app and selected SMU (`04121`). The page displayed 
 
 **Action:**  
 I treated this as the first verified end-to-end success because the result was observed on the deployed Vercel product rather than inferred from AI Studio preview or the agent's completion report. I did not send another coding prompt.
+
+### Production network and cache verification
+
+I inspected the deployed product rather than relying on the agent's report.
+
+The browser requested live arrivals only through my own `/api/bus` endpoint on the Vercel domain and did not call LTA DataMall directly.
+
+I also tested the same `/api/bus` request twice from the command line. The first response returned `x-vercel-cache: MISS` and the immediate second request returned `x-vercel-cache: HIT`.
+
+**Action:**  
+I kept the existing caching implementation because the deployed evidence confirmed that Vercel was serving repeated requests from its cache. I made no code change.
