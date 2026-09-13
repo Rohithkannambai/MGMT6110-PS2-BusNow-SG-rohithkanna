@@ -15563,3 +15563,9 @@ However, AI Studio's written verification report incorrectly claimed that the st
 **Action:**  
 I kept the visual changes because the rendered interface and source code were correct. I did not send another prompt to change the stop data. I treated the incorrect completion report as an agent-reporting error and relied on the source code rather than the agent's summary.
 
+### Manual cleanup before first app-code commit
+
+After exporting the AI Studio project, I reviewed the generated files before committing them to GitHub. I found several unused AI Studio/Gemini scaffold leftovers that were not part of BusNow SG: `@google/genai`, Express/dotenv dependencies, Gemini instructions in `README.md`, Gemini placeholders in `.env.example`, and a Gemini capability in `metadata.json`.
+
+**Action:**  
+I removed these manually instead of spending another AI Studio prompt because they were deterministic cleanup tasks, not product-design decisions. I kept the LTA serverless functions and front-end application unchanged. The real `LTA_ACCOUNT_KEY` was not added to any local file or GitHub content.
