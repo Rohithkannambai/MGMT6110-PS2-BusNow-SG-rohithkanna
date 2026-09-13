@@ -15610,3 +15610,12 @@ I then restored the real LTA hostname, redeployed, and confirmed `/api/health` r
 
 **Action:**  
 I kept the existing unreachable-error handling because the production test showed that it was clearly distinguishable from a provider refusal. I restored the working production configuration immediately after the test.
+
+### Public and mobile verification
+
+I opened the production URL in an Incognito/InPrivate browser without signing into GitHub or Vercel. The product loaded normally and returned live bus arrivals.
+
+I also tested the production product on my phone. The five stop choices were usable, the layout had no obvious horizontal overflow, and the live arrival results were readable.
+
+**Action:**  
+I kept the existing responsive design because the deployed product worked for both a public browser session and the intended mobile use case.
