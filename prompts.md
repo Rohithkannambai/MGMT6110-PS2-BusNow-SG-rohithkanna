@@ -14621,3 +14621,67 @@ Do not make any further changes after finishing this task.
 **What I changed next and why:** I rejected the result and restored the previous stable version because a structural refactor was not allowed to rewrite the product. I then exported the stable source and completed the one-data-file migration as a controlled code-side refactor, preserving the existing case/media/news values, removed the unused Gemini/key scaffold artifacts, pushed the verified project to my public GitHub repository, and deployed the tested build to Vercel.
 
 ---
+---
+
+# Problem Set 2 — BusNow SG
+
+## Pre-build command decisions
+
+**Product:** BusNow SG
+
+**User:** An SMU student leaving campus after class.
+
+**One job:** Check current bus arrivals at a selected bus stop before deciding when to leave campus for the stop.
+
+**Observable success:** The student enters a bus stop code and sees current arrivals sourced from LTA DataMall, or a clear explanation when live arrival data cannot be provided.
+
+### Decisions I made before asking the agent to build
+
+- I chose to build a new PS2 product rather than add an unrelated live-data feature to Ting Ting.
+- I chose LTA DataMall Bus Arrival because the product's core claim — when the next bus is arriving — cannot be truthful without an external live source.
+- I chose bus stop `04121` as the first test stop for the SMU use case.
+- I decided to keep the product to one phone-first screen rather than build a larger transport dashboard.
+- I decided that the browser should call only my own `/api/bus` function; the LTA Account Key must remain server-side.
+- I decided to use the Vercel environment variable name `LTA_ACCOUNT_KEY`.
+- I decided the cache should be `s-maxage=20, stale-while-revalidate=40` because LTA Bus Arrival updates approximately every 20 seconds.
+- I decided that the first version only needs service number and valid arrival times. I do not need latitude, longitude, load, vehicle type, origin or destination for the user's one job.
+- I decided that empty `EstimatedArrival` values in `NextBus`, `NextBus2` or `NextBus3` must not be shown as real arrivals.
+
+### Four user-facing service states decided before prompting
+
+**Loading:**  
+Checking LTA for the latest arrivals…
+
+**Empty:**  
+No upcoming buses are currently reported for this stop. Try another stop or check again later.
+
+**Provider refused:**  
+LTA declined the live-data request. Please try again shortly.
+
+**Provider unreachable:**  
+We can't reach LTA right now. Please try again in a few minutes.
+
+### Manual source verification before Prompt 1
+
+I called the LTA Bus Arrival v3 endpoint by hand using my Account Key before asking an agent to write the integration.
+
+For bus stop `04121`, the real response contained:
+
+- `BusStopCode`
+- `Services[]`
+- `ServiceNo`
+- `Operator`
+- `NextBus`
+- `NextBus2`
+- `NextBus3`
+- `EstimatedArrival`
+- `Monitored`
+- `Latitude`
+- `Longitude`
+- `Load`
+- `Feature`
+- `Type`
+
+The real response also showed that `NextBus2` and `NextBus3` can exist as objects while `EstimatedArrival` is an empty string. I therefore decided that the backend must filter empty arrival values rather than treating every returned bus object as a valid arrival.
+
+No API credential is written in this file.
