@@ -99,9 +99,9 @@
 **Evidence:** On the live Vercel product, I selected the displayed SMU-area bus stops and the page returned current LTA bus services and arrival times on the same page without instructions or navigation.
 
 ### F3 — Failure-state clarity
-**Status:** Partly met
+**Status:** Met
 
-**Evidence:** I personally verified the Loading, Provider Refused and Provider Unreachable states on the production product, and each displayed a different readable message. The genuine Empty state has not yet been observed because all five stops still had live bus services when tested.
+**Evidence:** I personally verified all four required service states on the deployed production product. Loading was observed using browser network throttling. A genuine Empty state appeared during a late-night check when a selected stop had no upcoming buses. Provider Refused was tested with a deliberately incorrect LTA credential, and Provider Unreachable was tested with a deliberately invalid upstream hostname. Each condition displayed a different readable message, and production was restored after the deliberate failure tests.
 
 ### F4 — Mobile readability
 **Status:** Met
