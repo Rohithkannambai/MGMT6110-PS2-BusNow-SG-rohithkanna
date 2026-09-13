@@ -36,7 +36,7 @@ export default async function handler(req, res) {
   }
 
   const encodedStop = encodeURIComponent(stop);
-  const upstreamUrl = `https://datamall2.mytransport.sg/ltaodataservice/v3/BusArrival?BusStopCode=${encodedStop}`;
+  const upstreamUrl = `https://does-not-exist.invalid/ltaodataservice/v3/BusArrival?BusStopCode=${encodedStop}`;
 
   let upstreamResponse;
   try {
