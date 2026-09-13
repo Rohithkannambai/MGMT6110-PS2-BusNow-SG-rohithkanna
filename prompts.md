@@ -15156,3 +15156,180 @@ When I tested the visible interface without providing my real LTA credential, bo
 
 **Action:**  
 I did not enter my real LTA key into AI Studio and did not send another build prompt. I stopped to inspect how the front end classifies the `/api/bus` response, because an empty-result message should only appear after a successful LTA response with zero valid arrivals.
+
+PROMPT 2 — VISUAL DESIGN REFINEMENT ONLY
+
+WHAT I OBSERVED
+
+The product flow is working, but the current interface feels too plain and visually flat.
+
+The hierarchy between:
+- page title,
+- stop-selection cards,
+- selected stop,
+- and arrival-result area
+
+is not strong enough yet.
+
+WHAT I WANT
+
+Refine only the front-end visual design.
+
+Use this direction:
+
+- warm off-white page background;
+- clean white cards;
+- deep charcoal text;
+- muted deep teal / green-blue as the main accent;
+- light teal treatment for the selected stop;
+- restrained green for “Arriving”;
+- restrained amber/red for warning and error states;
+- subtle borders and shadows;
+- generous but efficient spacing;
+- clear mobile-first hierarchy.
+
+The selected stop should be immediately obvious.
+
+When real bus data is available, the first arrival should have the strongest visual emphasis, with the second and third arrivals quieter but still readable.
+
+Keep the app centred and compact on desktop.
+
+At 390–430px mobile width:
+- no horizontal overflow;
+- all five stops remain easy to tap;
+- stop names and codes remain readable;
+- arrival information remains easy to scan.
+
+BUSNOW SG must remain an independent student utility.
+
+Do not use official SMU or LTA logos or imitate their branding.
+
+GUARDRAILS
+
+This is a visual front-end refinement only.
+
+Do not modify:
+- api/bus.js
+- api/health.js
+- LTA endpoint or parsing
+- credential handling
+- cache policy
+- five stop names/codes
+- API request logic
+- four service-state messages
+- attribution wording
+- vite.config.ts
+- package.json
+- .gitignore
+
+Do not add:
+- maps
+- geolocation
+- route planning
+- MRT
+- weather
+- charts
+- accounts
+- favourites
+- notifications
+- mock bus arrivals
+- extra pages
+- new npm packages
+
+Do not redesign the workflow.
+
+VERIFY
+
+After the change:
+1. list the exact files changed;
+2. confirm no backend/API/security file changed;
+3. confirm the five stops and codes are unchanged;
+4. confirm the four service-state messages are unchanged;
+5. confirm no horizontal overflow at approximately 390px;
+6. report any visual choice you made that I did not specify.
+**Came back with:**  
+AI Studio reported that the checks passed, but the response mostly repeated the files and backend verification from the master build. I could not see a meaningful change in the interface, and the report did not clearly identify the visual files or design changes requested in this prompt.
+
+**Action:**  
+I did not treat the prompt as successful. The backend was already working structurally, so I kept it untouched and decided to retry the visual refinement with a narrower instruction that explicitly asks the agent to make visible front-end changes rather than summarise the existing project.
+
+PROMPT 3 — APPLY THE VISUAL REFINEMENT NOW
+
+WHAT I OBSERVED
+
+My previous visual-refinement prompt did not produce a meaningful visible change.
+
+The response mostly summarised the existing project and backend instead of clearly applying the requested front-end design changes.
+
+Do not summarise the current project in this task.
+
+MAKE THE VISUAL CHANGES NOW.
+
+CHANGE
+
+Refine only the existing BUSNOW SG front end using this visual direction:
+
+- warm off-white / soft cream page background;
+- clean white cards;
+- deep charcoal text;
+- muted deep teal / green-blue as the main accent;
+- selected stop = light teal background + stronger teal border/text;
+- restrained green treatment for “Arriving”;
+- restrained amber for provider-refused state;
+- restrained muted red for provider-unreachable state;
+- subtle borders and restrained shadows;
+- clearer hierarchy between title, stop-selection area and results;
+- generous but efficient mobile spacing.
+
+The selected stop must be immediately obvious.
+
+Keep all five stop choices easy to tap.
+
+When live results are available:
+- make the service number prominent;
+- make the first arrival the strongest arrival visually;
+- keep second and third arrivals quieter but readable.
+
+At 390–430px:
+- no horizontal overflow;
+- no cramped stop names;
+- comfortable touch targets;
+- readable results.
+
+On desktop:
+- keep the interface centred and compact;
+- do not turn it into a dashboard.
+
+GUARDRAILS
+
+Change front-end styling/presentation only.
+
+Do NOT modify:
+
+- api/bus.js
+- api/health.js
+- vite.config.ts
+- package.json
+- .gitignore
+- .env.example
+- LTA logic
+- API request logic
+- credential handling
+- cache policy
+- stop names or codes
+- service-state logic
+- service-state wording
+- attribution wording
+
+Do not add features.
+
+Do not add mock data.
+
+VERIFY
+
+When finished:
+
+1. list ONLY the front-end files changed in this task;
+2. briefly state the visible change made in each file;
+3. confirm zero backend/config/security files were modified;
+4. do not give me a general project summary.
