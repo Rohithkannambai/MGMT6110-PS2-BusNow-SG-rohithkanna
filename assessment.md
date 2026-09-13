@@ -89,9 +89,9 @@
 ## Front-end criteria
 
 ### F1 — Purpose clarity
-**Status:** Partly met
+**Status:** Not met
 
-**Evidence:** The live page clearly identifies BUSNOW SG and states that it provides live bus arrivals around the Bras Basah campus area. I verified the page in a public Incognito session and on a phone, but I have not yet tested the five-second comprehension check with a first-time user.
+**Evidence:** The production page clearly identifies BUSNOW SG and states that it provides live bus arrivals around the Bras Basah campus area. However, I did not complete the first-time-user five-second comprehension test that I defined for this criterion, so I do not have enough evidence to mark it as met.
 
 ### F2 — Stop selection and arrival completion
 **Status:** Met
