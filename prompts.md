@@ -15333,3 +15333,233 @@ When finished:
 2. briefly state the visible change made in each file;
 3. confirm zero backend/config/security files were modified;
 4. do not give me a general project summary.
+**Came back with:**  
+The visual-refinement prompt did make the interface cleaner. The selected stop became clearer with a teal treatment, the page hierarchy improved, and the cards looked more consistent. After seeing the result, I still felt the page was too plain and had too much empty visual space, especially around the header and footer.
+
+**Action:**  
+I kept the layout and interaction because they were working. I decided the next prompt should change only the visual identity: a red-and-white BusNow SG theme, a simple fictional app symbol, and a more intentional header and footer. I did not want any backend or workflow changes.
+
+PROMPT 4 — RED & WHITE VISUAL IDENTITY ONLY
+
+WHAT I OBSERVED
+
+The BusNow SG workflow and layout are working, but the current interface still feels too plain and visually empty.
+
+The stop selection and result area should remain exactly as they are functionally.
+
+I now want a stronger fictional visual identity for BUSNOW SG.
+
+CHANGE
+
+Change only the front-end visual design.
+
+Use a RED + WHITE visual direction.
+
+1. COLOUR SYSTEM
+
+Use:
+
+- warm white / very light neutral background;
+- clean white cards;
+- deep charcoal text;
+- deep crimson / transit red as the main accent;
+- very light red tint for selected/active surfaces;
+- restrained green only for the “Arriving” success state;
+- restrained amber/red for warning/error states.
+
+Do not copy LTA branding or use an official-looking government red scheme.
+
+BUSNOW SG must remain an independent fictional student utility.
+
+
+2. HEADER
+
+Create a more intentional compact header.
+
+Include:
+
+- a simple fictional BUSNOW SG symbol;
+- BUSNOW SG wordmark;
+- subtitle:
+  “Live bus arrivals around the Bras Basah campus area.”
+
+For the symbol:
+
+Use an existing local icon such as a simple bus icon from the already-installed icon library, or create a simple CSS/text-based mark.
+
+Do NOT:
+- generate an image;
+- download an image;
+- use an LTA logo;
+- use an SMU logo;
+- use any real organisation logo.
+
+The symbol should feel like part of the fictional BUSNOW SG brand.
+
+Use the deep red accent for the symbol or its container.
+
+Keep the header compact and mobile-friendly.
+
+
+3. STOP SELECTION
+
+Preserve all five existing stops and codes.
+
+Change only their styling.
+
+Unselected:
+- white card;
+- subtle border;
+- dark text.
+
+Selected:
+- light red-tinted background;
+- stronger deep-red border;
+- deep-red indicator or checkmark;
+- clear selected hierarchy.
+
+The selected state must be obvious without becoming visually aggressive.
+
+
+4. RESULTS AREA
+
+Keep the existing structure.
+
+Use the same red-and-white visual system.
+
+When real bus results are available:
+
+- service number should remain prominent;
+- first arrival should have the strongest hierarchy;
+- second and third arrivals should be quieter;
+- “Arriving” remains a restrained green state.
+
+Do not add mock bus results just to demonstrate styling.
+
+
+5. FOOTER
+
+Redesign the footer so it feels deliberate rather than like loose text at the bottom of the page.
+
+Use:
+
+- a subtle top divider or deep-red accent line;
+- compact spacing;
+- clear source label;
+- visually secondary licence text.
+
+Keep the existing attribution wording exactly unchanged.
+
+Also keep the independent-student-utility disclaimer.
+
+You may visually organise the footer into a small clean information block.
+
+Do not add unrelated links or information.
+
+
+6. SMALL CREATIVE DETAIL
+
+Add ONE restrained decorative detail that fits the bus-arrival theme.
+
+Examples of acceptable approaches:
+
+- a simple route-line motif;
+- small stop-dot pattern;
+- subtle red line connecting small circles;
+- simple transport-style visual divider.
+
+It must be decorative only.
+
+Do not turn it into:
+- a map;
+- route planner;
+- real route diagram;
+- additional data visualisation.
+
+Keep it subtle.
+
+
+7. MOBILE
+
+At approximately 390–430px:
+
+- no horizontal overflow;
+- header remains compact;
+- all five stop cards remain comfortable to tap;
+- result card remains readable;
+- footer remains clean and not oversized.
+
+
+8. DESKTOP
+
+Keep the application centred and relatively compact.
+
+Do not convert it into a dashboard.
+
+Use the increased space mainly for balanced margins and visual breathing room.
+
+
+GUARDRAILS
+
+THIS IS A VISUAL FRONT-END TASK ONLY.
+
+Do NOT modify:
+
+- api/bus.js
+- api/health.js
+- vite.config.ts
+- package.json
+- .gitignore
+- .env.example
+- API request logic
+- LTA response parsing
+- LTA_ACCOUNT_KEY handling
+- caching
+- five bus stop names
+- five bus stop codes
+- service-state logic
+- four exact service-state messages
+- source attribution wording
+- existing workflow
+
+Do NOT add:
+
+- image files;
+- generated images;
+- downloaded logos;
+- maps;
+- geolocation;
+- route planning;
+- MRT data;
+- weather;
+- charts;
+- accounts;
+- favourites;
+- notifications;
+- mock arrivals;
+- extra pages;
+- new npm packages.
+
+Use only existing project capabilities and installed icons.
+
+VERIFY
+
+After the change:
+
+1. list only the front-end files changed;
+2. briefly explain the visible change in each;
+3. confirm zero backend/config/security files changed;
+4. confirm all five stops and codes are unchanged;
+5. confirm the four service-state messages are unchanged;
+6. confirm attribution wording is unchanged;
+7. confirm no external image/logo asset was introduced;
+8. confirm no horizontal overflow at approximately 390px;
+9. report any visual choice you made that I did not explicitly specify.
+**Came back with:**  
+The visual-design prompt produced a clear red-and-white BUSNOW SG identity with a fictional bus symbol, stronger header, selected-stop treatment, route-line detail and a more intentional results/footer design. The visible interface kept the correct five stops.
+
+However, AI Studio's written verification report incorrectly claimed that the stop list contained different names and codes. I checked `src/types.ts` manually and confirmed that the actual source code still contained the five stops I had specified.
+
+**Action:**  
+I kept the visual changes because the rendered interface and source code were correct. I did not send another prompt to change the stop data. I treated the incorrect completion report as an agent-reporting error and relied on the source code rather than the agent's summary.
+
