@@ -15597,3 +15597,16 @@ I also tested the same `/api/bus` request twice from the command line. The first
 
 **Action:**  
 I kept the existing caching implementation because the deployed evidence confirmed that Vercel was serving repeated requests from its cache. I made no code change.
+
+### Deliberate unreachable-provider test
+
+I temporarily changed the LTA upstream hostname to a non-existent host and deployed that version to production.
+
+The live product displayed:
+
+“We can't reach LTA right now. Please try again in a few minutes.”
+
+I then restored the real LTA hostname, redeployed, and confirmed `/api/health` returned `keyConfigured: true` and `upstreamStatus: 200`. Live bus arrivals also returned in the production app.
+
+**Action:**  
+I kept the existing unreachable-error handling because the production test showed that it was clearly distinguishable from a provider refusal. I restored the working production configuration immediately after the test.
