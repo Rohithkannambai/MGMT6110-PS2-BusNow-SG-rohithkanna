@@ -14685,3 +14685,474 @@ For bus stop `04121`, the real response contained:
 The real response also showed that `NextBus2` and `NextBus3` can exist as objects while `EstimatedArrival` is an empty string. I therefore decided that the backend must filter empty arrival values rather than treating every returned bus object as a valid arrival.
 
 No API credential is written in this file.
+
+PROBLEM SET 2 — MASTER PROMPT
+BUSNOW SG
+ROLE
+You are a senior full-stack developer building a small React/Vite web application.
+Build exactly the product and backend described below.
+Do not redesign the business problem, invent additional workflows, or add features I did not request.
+I am not a programmer.
+If you make an implementation choice I did not specify, state that choice clearly at the end instead of silently turning it into a product decision.
+GOAL
+Build BUSNOW SG.
+BUSNOW SG is a fictional student utility product.
+It is NOT an official SMU product.
+It is NOT an official LTA product.
+Do not use SMU or LTA logos, brand styling, trademarks as visual branding, or imply endorsement.
+Real public transport stop names/codes and real LTA DataMall arrival information may be displayed because they are the public data being sourced for this assignment.
+USER
+A university student leaving the Bras Basah campus area after class.
+ONE JOB
+Choose one of a small set of nearby public bus stops and see the current bus services and upcoming arrival times before leaving campus.
+EXTERNALLY SOURCED CLAIM
+“These are the current bus arrival times reported by LTA DataMall for the public bus stop selected by the user.”
+This claim must never be satisfied with invented, mock, placeholder or fallback arrival values.
+OBSERVABLE SUCCESS
+The student opens one page, chooses a nearby stop, and either:
+A. sees the current bus services and upcoming arrival times sourced from LTA DataMall,
+or
+B. sees a clear explanation of why live arrival information cannot currently be provided.
+Build this as ONE phone-first page.
+INITIAL INTERFACE
+The page should clearly communicate its purpose within a few seconds.
+Show:
+BUSNOW SG
+Subtitle:
+Live bus arrivals around the Bras Basah campus area.
+Then ask:
+Which stop are you leaving from?
+Show exactly these five selectable public bus stops:
+1.
+SMU
+04121
+2.
+Aft Bras Basah Stn Exit A
+04179
+3.
+Cath of The Good Shepherd
+04151
+4.
+YMCA
+08041
+5.
+Bencoolen Stn Exit B
+08069
+These stop names and codes were verified before this prompt using current public campus/transport information.
+Treat them as a small static product configuration.
+Do NOT invent:
+more stops;
+walking distance;
+nearest-stop ranking;
+location coordinates;
+GPS recommendations;
+building recommendations.
+Do NOT require the user to know or type a bus-stop code.
+Initially, no stop needs to be selected.
+Only one stop may be selected at a time.
+When a stop is selected:
+visually indicate the selected stop;
+request that stop's live arrivals;
+show the results on the SAME page.
+When another stop is selected:
+keep the page loaded;
+replace the previous result with the new stop's result;
+do not require a page refresh.
+NORMAL SUCCESS STATE
+When the user selects a stop:
+the browser must call only:
+/api/bus?stop=[SELECTED_STOP_CODE]
+The browser must NEVER call LTA DataMall directly.
+After a successful response show:
+selected stop name;
+selected stop code;
+every returned bus service with at least one valid upcoming arrival;
+service number prominently;
+up to three valid arrival times for that service;
+the time the backend fetched the information.
+Convert returned ISO EstimatedArrival timestamps into simple relative times such as:
+4 min
+13 min
+24 min
+If an arrival is effectively due now, display:
+Arriving
+Do not display negative minute values.
+Do not fabricate a second or third arrival if LTA returned an empty value.
+Do not hard-code:
+bus service numbers;
+number of services;
+live arrival values.
+The public stop names/codes are static configuration.
+The bus services and arrival times must come from the real LTA response.
+FOUR SERVICE STATES
+These exact user-facing states were decided by the human before development.
+Do not rewrite them.
+LOADING
+Show exactly:
+Checking LTA for the latest arrivals…
+EMPTY
+A successful LTA response with zero valid upcoming services or arrival timestamps is the EMPTY state.
+Show exactly:
+No upcoming buses are currently reported for this stop. Choose another nearby stop or check again later.
+This is NOT:
+an invalid-input error;
+a provider refusal;
+an unreachable-provider error.
+PROVIDER REFUSED
+When my server successfully reaches LTA but LTA returns a non-success HTTP status, show exactly:
+LTA declined the live-data request. Please try again shortly.
+PROVIDER UNREACHABLE
+When my server cannot reach the LTA host because of a network, DNS or similar connection failure, show exactly:
+We can't reach LTA right now. Please try again in a few minutes.
+Do not collapse these states into one generic error.
+Do not use one loading spinner for every condition.
+FRONT-END DESIGN
+Create a restrained, polished, phone-first interface.
+The screen should feel like a useful student utility, not an enterprise dashboard.
+Use:
+light neutral or off-white background;
+clean white surfaces/cards;
+dark readable text;
+one restrained accent colour;
+clear hierarchy;
+prominent stop names;
+prominent bus service numbers;
+highly readable arrival times;
+comfortable touch targets;
+generous whitespace;
+subtle borders or restrained shadows;
+restrained error styling.
+At approximately 390–430px width:
+no horizontal overflow;
+all five stop choices must remain easy to tap;
+service numbers and arrival times must remain readable without zooming.
+At desktop width:
+centre the interface;
+keep it reasonably compact;
+do not turn it into a multi-column analytics dashboard.
+Do not imitate official SMU or LTA visual identity.
+Do not use their logos.
+You have reasonable implementation freedom over:
+exact component structure;
+card layout;
+spacing;
+accent colour;
+CSS implementation;
+React state organisation;
+provided all requirements above remain true.
+SOURCE ATTRIBUTION
+Place a visible source acknowledgement near the bottom of the page.
+Use:
+Contains information from Bus Arrival accessed on 13 September 2026 from LTA DataMall, which is made available under the terms of the Singapore Open Data Licence version 1.0.
+Make:
+Singapore Open Data Licence version 1.0
+a link to:
+https://datamall.lta.gov.sg/content/datamall/en/SingaporeOpenDataLicence.html
+Do not present BUSNOW SG as an official LTA service.
+SERVERLESS BUS FUNCTION
+Create:
+api/bus.js
+at the PROJECT ROOT.
+It must be a sibling of package.json.
+Correct:
+PROJECT ROOT
+├── api/
+│ └── bus.js
+├── src/
+├── package.json
+Incorrect:
+src/api/bus.js
+The browser calls:
+/api/bus?stop=04121
+The function reads the LTA credential only from:
+process.env.LTA_ACCOUNT_KEY
+Never place the actual credential in:
+source code;
+browser/client code;
+comments;
+README;
+URLs;
+console logs;
+API responses.
+Before calling LTA:
+if LTA_ACCOUNT_KEY is missing or empty:
+do not call LTA;
+return HTTP 503;
+return JSON identifying the missing variable without revealing any part of the credential.
+Example:
+{
+"errorType": "configuration",
+"error": "LTA_ACCOUNT_KEY is not set. Add it in Vercel, then redeploy."
+}
+Also validate the stop query on the server.
+It must contain exactly five digits.
+Otherwise return HTTP 400.
+LTA UPSTREAM REQUEST
+Call:
+https://datamall2.mytransport.sg/ltaodataservice/v3/BusArrival?BusStopCode=[ENCODED_STOP]
+Send the credential only through the request header:
+AccountKey: [server-side LTA_ACCOUNT_KEY value]
+Do not:
+put the key in the URL;
+send it to the browser;
+place it in a VITE_ variable.
+PROVIDER ERROR HANDLING
+Wrap the upstream fetch.
+If the LTA host cannot be reached because of a network, DNS or similar connection failure:
+return HTTP 502 with JSON such as:
+{
+"errorType": "unreachable",
+"error": "Could not reach LTA."
+}
+When an HTTP response is received:
+CHECK response.ok BEFORE reading or parsing the response body.
+If LTA returns a non-2xx status:
+do not assume the body contains JSON;
+do not call response.json() before checking response.ok;
+return the upstream HTTP status through my function;
+return JSON such as:
+{
+"errorType": "refused",
+"error": "LTA declined the live-data request.",
+"upstreamStatus": [ACTUAL_STATUS]
+}
+Never return:
+the key;
+part of the key;
+its length;
+its prefix/suffix;
+a hash or encoded form of the key.
+SUCCESS RESPONSE PARSING
+After a successful LTA response, read only:
+BusStopCode
+Services[]
+ServiceNo
+NextBus.EstimatedArrival
+NextBus2.EstimatedArrival
+NextBus3.EstimatedArrival
+For each service:
+inspect NextBus;
+inspect NextBus2;
+inspect NextBus3;
+collect only non-empty EstimatedArrival values;
+discard empty strings;
+do not interpret an empty object/string as an upcoming bus;
+if a service contains zero valid arrival timestamps, omit that service from the returned service list.
+Return only the data needed by the screen.
+Use this server response shape:
+{
+"stop": "04121",
+"services": [
+{
+"service": "106",
+"arrivals": [
+"2026-09-13T18:09:27+08:00",
+"2026-09-13T18:23:48+08:00"
+]
+}
+],
+"fetchedAt": "[SERVER ISO TIMESTAMP]"
+}
+Do not return unused upstream fields such as:
+latitude;
+longitude;
+origin code;
+destination code;
+operator;
+load;
+vehicle type;
+accessibility feature.
+This product does not need them.
+CACHING
+LTA Bus Arrival updates approximately every 20 seconds.
+For successful /api/bus responses set:
+Cache-Control: s-maxage=20, stale-while-revalidate=40
+Do not choose a different cache duration.
+HEALTH ENDPOINT
+Create:
+api/health.js
+at the PROJECT ROOT beside api/bus.js.
+Use bus stop:
+04121
+for the upstream health test.
+The endpoint must report:
+whether LTA_ACCOUNT_KEY is configured;
+whether the upstream answered;
+the upstream HTTP status when available;
+the time of the check.
+A normal healthy response may look like:
+{
+"keyConfigured": true,
+"upstreamStatus": 200,
+"checkedAt": "..."
+}
+If the key is missing:
+keyConfigured must be false;
+do not contact LTA.
+If LTA cannot be reached:
+report:
+"upstreamStatus": "unreachable"
+The health endpoint must NEVER reveal:
+the credential;
+credential length;
+first characters;
+last characters;
+substring;
+hash;
+encoded form;
+any clue about the actual credential value.
+OUTPUT
+Create the complete React/Vite front end plus:
+api/bus.js
+api/health.js
+Required project structure:
+PROJECT ROOT
+├── api/
+│ ├── bus.js
+│ └── health.js
+├── src/
+├── package.json
+└── ...
+The api directory must NOT be inside src.
+Ensure package.json contains:
+"type": "module"
+Ensure .gitignore contains:
+.env*
+Do not create an .env file containing the credential.
+Use:
+normal React state;
+built-in fetch;
+the project's existing styling approach.
+No new npm packages unless the existing AI Studio scaffold already requires them.
+Browser code must call only:
+/api/bus?stop=[SELECTED_STOP_CODE]
+Browser code must NEVER call:
+datamall2.mytransport.sg
+If AI Studio preview cannot execute Vercel root-level serverless functions:
+do not insert mock data;
+do not bypass /api/bus;
+do not call LTA directly from the browser;
+keep the correct production wiring;
+allow the real failure state to display;
+explicitly report that the serverless backend remains unverified until Vercel deployment.
+Do not claim the integration works simply because the React build succeeded.
+When finished:
+run available build/type checks;
+list every file created or modified;
+state the exact location of api/bus.js;
+state the exact location of api/health.js;
+confirm that package.json contains "type": "module";
+confirm that .gitignore contains .env*;
+confirm that client code calls only /api/bus;
+confirm that no credential value was written anywhere;
+state which front-end behaviours were genuinely tested;
+state which backend behaviours remain NOT VERIFIED until Vercel deployment;
+state every implementation choice you made that I did not explicitly specify.
+GUARDRAILS
+Never write the LTA Account Key into any project file.
+Never create a secret variable whose name begins:
+VITE_
+Every real LTA request must originate server-side inside api/.
+No browser-to-LTA request.
+No mock live arrivals.
+No invented bus service numbers.
+No invented arrival times.
+No Express.
+No separate backend framework.
+No database.
+No Firebase.
+No Supabase.
+No authentication.
+No login.
+No user accounts.
+No model call.
+No Gemini API.
+No LLM.
+No AI recommendation.
+No maps.
+No geolocation.
+No weather.
+No route planning.
+No MRT data.
+No second external live-data source.
+No analytics.
+No charts.
+No notifications.
+No favourites.
+No localStorage.
+No sessionStorage.
+No extra dashboard panels.
+No official SMU branding.
+No official LTA branding.
+No real personal names or private data.
+Do not change the five predefined public stops.
+Do not change the four exact user-facing service-state sentences.
+Do not change the cache duration.
+Do not add features not requested above.
+If something is unspecified:
+make the smallest conservative implementation choice and report it.
+CONTEXT
+This is my individual MGMT 6110 Human-AI Collaboration Problem Set 2.
+My professor has clarified that students may create a new product or service from scratch using publicly available APIs.
+BUSNOW SG is a fictional student utility.
+It is not an official SMU or LTA product.
+The five selectable stops use real public stop names/codes because they are necessary public transport data for this product:
+SMU — 04121
+Aft Bras Basah Stn Exit A — 04179
+Cath of The Good Shepherd — 04151
+YMCA — 08041
+Bencoolen Stn Exit B — 08069
+The live bus arrival information must come only from LTA DataMall.
+USER
+A university student leaving the Bras Basah campus area after class.
+ONE JOB
+Choose one of these nearby public bus stops and see the current LTA-reported services and upcoming arrival times.
+DEPLOYMENT TARGET
+Vercel from a public GitHub repository.
+CREDENTIAL
+The LTA Account Key will exist only as a Vercel environment variable named:
+LTA_ACCOUNT_KEY
+The credential is NOT included in this prompt.
+MANUAL VERIFICATION ALREADY COMPLETED
+Before asking an agent to implement the integration, I manually called the real LTA Bus Arrival v3 endpoint using my own credential.
+A real response for bus stop 04121 contained this structure:
+{
+"BusStopCode": "04121",
+"Services": [
+{
+"ServiceNo": "106",
+"NextBus": {
+"EstimatedArrival": "2026-09-13T18:09:27+08:00"
+},
+"NextBus2": {
+"EstimatedArrival": "2026-09-13T18:23:48+08:00"
+},
+"NextBus3": {
+"EstimatedArrival": "2026-09-13T18:33:13+08:00"
+}
+},
+{
+"ServiceNo": "131",
+"NextBus": {
+"EstimatedArrival": "2026-09-13T18:22:09+08:00"
+},
+"NextBus2": {
+"EstimatedArrival": ""
+},
+"NextBus3": {
+"EstimatedArrival": ""
+}
+}
+]
+}
+This real response demonstrated that NextBus2 and NextBus3 may exist even when EstimatedArrival is an empty string.
+Blank arrival values must therefore be filtered out.
+The real backend will be considered verified only after deployment to Vercel.
+Build BUSNOW SG now.
+**Came back with:**  
+The master build produced the intended one-page flow with five nearby bus stops. The project structure was correct: `api/bus.js` and `api/health.js` were at the project root, `package.json` contained `"type": "module"`, `.gitignore` contained `.env*`, and the client was wired to `/api/bus`. AI Studio also tested missing-key, invalid-stop, refusal, parsing and cache behaviour locally.
+
+When I tested the visible interface without providing my real LTA credential, both SMU (`04121`) and YMCA (`08041`) showed the EMPTY message: “No upcoming buses are currently reported for this stop.” This did not match the backend evidence, because the same local backend reported HTTP 503 when `LTA_ACCOUNT_KEY` was missing.
+
+**Action:**  
+I did not enter my real LTA key into AI Studio and did not send another build prompt. I stopped to inspect how the front end classifies the `/api/bus` response, because an empty-result message should only appear after a successful LTA response with zero valid arrivals.
