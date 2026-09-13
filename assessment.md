@@ -86,17 +86,37 @@
 
 # Self-assessment
 
-To be completed only after the product has been built and tested.
+## Front-end criteria
 
-Each criterion will be marked:
+### F1 — Purpose clarity
+**Status:** Partly met
 
-- **Met**
-- **Partly met**
-- **Not met**
+**Evidence:** The live page clearly identifies BUSNOW SG and states that it provides live bus arrivals around the Bras Basah campus area. I verified the page in a public Incognito session and on a phone, but I have not yet tested the five-second comprehension check with a first-time user.
 
-with one sentence of evidence.
+### F2 — Stop selection and arrival completion
+**Status:** Met
 
----
+**Evidence:** On the live Vercel product, I selected the displayed SMU-area bus stops and the page returned current LTA bus services and arrival times on the same page without instructions or navigation.
+
+### F3 — Failure-state clarity
+**Status:** Partly met
+
+**Evidence:** I personally verified the Loading, Provider Refused and Provider Unreachable states on the production product, and each displayed a different readable message. The genuine Empty state has not yet been observed because all five stops still had live bus services when tested.
+
+### F4 — Mobile readability
+**Status:** Met
+
+**Evidence:** I opened the production product on my phone. The five stop choices were usable, the layout had no obvious horizontal overflow, and the arrival information was readable without zooming.
+
+### F5 — Change-stop recovery
+**Status:** Met
+
+**Evidence:** I selected one stop, received its live arrivals, then selected other stops. The result area updated to the newly selected stop without reloading the page.
+
+### F6 — Claim discipline and source visibility
+**Status:** Met
+
+**Evidence:** Live bus service numbers and arrival times are returned from LTA DataMall through `/api/bus`; the product does not replace unavailable live data with invented arrival values. LTA DataMall and the Singapore Open Data Licence are visibly credited in the interface.
 
 # Collaboration assessment
 
