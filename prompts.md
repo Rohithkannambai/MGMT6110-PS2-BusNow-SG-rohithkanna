@@ -15570,3 +15570,19 @@ After exporting the AI Studio project, I reviewed the generated files before com
 **Action:**  
 I removed these manually instead of spending another AI Studio prompt because they were deterministic cleanup tasks, not product-design decisions. I kept the LTA serverless functions and front-end application unchanged. The real `LTA_ACCOUNT_KEY` was not added to any local file or GitHub content.
 
+### Manual deployment and first live verification
+
+I deployed BUSNOW SG from the public GitHub repository to Vercel and added `LTA_ACCOUNT_KEY` as a Vercel environment variable rather than putting the credential into AI Studio or the repository.
+
+I opened `/api/health` before testing the main product. It returned:
+
+`keyConfigured: true`
+
+and:
+
+`upstreamStatus: 200`
+
+I then opened the production app and selected SMU (`04121`). The page displayed real bus services and live arrival times returned through my `/api/bus` endpoint.
+
+**Action:**  
+I treated this as the first verified end-to-end success because the result was observed on the deployed Vercel product rather than inferred from AI Studio preview or the agent's completion report. I did not send another coding prompt.
