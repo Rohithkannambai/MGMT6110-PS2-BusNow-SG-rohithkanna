@@ -14625,6 +14625,9 @@ Do not make any further changes after finishing this task.
 
 # Problem Set 2 — BusNow SG
 
+**Student:** Rohith Kanna  
+**Course:** MGMT 6110 · Human-AI Collaboration
+
 ## Pre-build command decisions
 
 **Product:** BusNow SG
