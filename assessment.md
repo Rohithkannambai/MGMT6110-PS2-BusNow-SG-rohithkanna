@@ -53,34 +53,34 @@
 ## Back-end criteria
 
 ### B1 — Real-source isolation
-**Why it matters:** Arrival claims must come from LTA while the browser communicates only with BusNow SG's own backend.
+**Status:** Met
 
-**How to test:** Inspect the browser Network panel and verify that the page calls `/api/bus` and does not call the LTA DataMall domain directly.
+**Evidence:** In the deployed product, browser Network inspection showed that the page calls only the Vercel `/api/bus` endpoint. The browser did not call the LTA DataMall domain directly. The serverless function then contacted LTA and returned the live arrival data to the page.
 
 ### B2 — Credential isolation
-**Why it matters:** The LTA Account Key must remain inaccessible to visitors and absent from the public repository.
+**Status:** Met
 
-**How to test:** Search the page source, current repository files and Git history for the credential, and verify that no secret variable name begins with `VITE_`.
+**Evidence:** The real `LTA_ACCOUNT_KEY` was stored only in Vercel Environment Variables. It was not added to AI Studio, `.env.example`, README, `prompts.md`, browser code or source files. The project uses `process.env.LTA_ACCOUNT_KEY`, and no credential variable begins with `VITE_`.
 
 ### B3 — Health observability
-**Why it matters:** Someone who did not build the product should be able to tell whether the service is configured and whether LTA is answering.
+**Status:** Met
 
-**How to test:** Open `/api/health` and verify that it reports whether the credential is configured, the upstream status and the check time without revealing any part of the credential.
+**Evidence:** The deployed `/api/health` endpoint returned `keyConfigured: true`, `upstreamStatus: 200` and a timestamp without revealing any part of the credential.
 
 ### B4 — Failure semantics
-**Why it matters:** Different backend failures should remain distinguishable instead of collapsing into a blank screen or generic server error.
+**Status:** Met
 
-**How to test:** Test missing or refused credentials and an unreachable upstream and verify that the backend returns meaningful statuses and messages for each condition.
+**Evidence:** I deliberately tested two different backend failures in production. With an incorrect LTA credential, the product showed the provider-refused message. With the LTA hostname temporarily changed to a non-existent host, the product showed the separate provider-unreachable message. I restored the real key and hostname after each test and confirmed `/api/health` returned `upstreamStatus: 200`.
 
 ### B5 — Freshness and caching
-**Why it matters:** Bus arrivals change quickly, but repeatedly requesting identical data more often than LTA updates it wastes provider capacity without improving usefulness.
+**Status:** Met
 
-**How to test:** Inspect the `/api/bus` response and verify a cache policy of `s-maxage=20, stale-while-revalidate=40`, matching LTA Bus Arrival's approximately 20-second update rhythm.
+**Evidence:** The serverless function sets `Cache-Control: s-maxage=20, stale-while-revalidate=40`, matching the approximately 20-second LTA Bus Arrival update rhythm. On the deployed Vercel endpoint, two immediate requests produced `x-vercel-cache: MISS` followed by `x-vercel-cache: HIT`, confirming edge caching was active.
 
 ### B6 — Safe response handling
-**Why it matters:** Empty arrival objects or provider refusals must not crash the backend or create fake bus information.
+**Status:** Met
 
-**How to test:** Verify that non-successful upstream responses are handled before body parsing and that empty `EstimatedArrival` values in `NextBus`, `NextBus2` or `NextBus3` are not returned as valid arrivals.
+**Evidence:** The server function checks `response.ok` before reading/parsing the upstream body, returns refusal and unreachable failures separately, and filters empty `EstimatedArrival` values from `NextBus`, `NextBus2` and `NextBus3` instead of treating them as valid buses.
 
 ---
 
