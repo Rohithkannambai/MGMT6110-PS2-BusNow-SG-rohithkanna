@@ -3,6 +3,7 @@ import {type BusStop, type FetchState, type BusApiResponse} from './types';
 import {StopSelector} from './components/StopSelector';
 import {ArrivalResults} from './components/ArrivalResults';
 import {Attribution} from './components/Attribution';
+import {DisqusComments} from './components/DisqusComments';
 import {Bus} from 'lucide-react';
 
 export default function App() {
@@ -150,7 +151,10 @@ export default function App() {
           onRefresh={handleRefresh}
         />
 
-        {/* 3. Source Attribution & Disclaimer */}
+        {/* 3. Feedback / Comments Section */}
+        <DisqusComments />
+
+        {/* 4. Source Attribution & Disclaimer */}
         <Attribution />
       </main>
     </div>
