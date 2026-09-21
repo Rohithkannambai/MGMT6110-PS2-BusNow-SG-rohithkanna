@@ -14625,6 +14625,9 @@ Do not make any further changes after finishing this task.
 
 # Problem Set 2 — BusNow SG
 
+**Student:** Rohith Kanna  
+**Course:** MGMT 6110 · Human-AI Collaboration
+
 ## Pre-build command decisions
 
 **Product:** BusNow SG
@@ -15570,3 +15573,65 @@ After exporting the AI Studio project, I reviewed the generated files before com
 **Action:**  
 I removed these manually instead of spending another AI Studio prompt because they were deterministic cleanup tasks, not product-design decisions. I kept the LTA serverless functions and front-end application unchanged. The real `LTA_ACCOUNT_KEY` was not added to any local file or GitHub content.
 
+### Manual deployment and first live verification
+
+I deployed BUSNOW SG from the public GitHub repository to Vercel and added `LTA_ACCOUNT_KEY` as a Vercel environment variable rather than putting the credential into AI Studio or the repository.
+
+I opened `/api/health` before testing the main product. It returned:
+
+`keyConfigured: true`
+
+and:
+
+`upstreamStatus: 200`
+
+I then opened the production app and selected SMU (`04121`). The page displayed real bus services and live arrival times returned through my `/api/bus` endpoint.
+
+**Action:**  
+I treated this as the first verified end-to-end success because the result was observed on the deployed Vercel product rather than inferred from AI Studio preview or the agent's completion report. I did not send another coding prompt.
+
+### Production network and cache verification
+
+I inspected the deployed product rather than relying on the agent's report.
+
+The browser requested live arrivals only through my own `/api/bus` endpoint on the Vercel domain and did not call LTA DataMall directly.
+
+I also tested the same `/api/bus` request twice from the command line. The first response returned `x-vercel-cache: MISS` and the immediate second request returned `x-vercel-cache: HIT`.
+
+**Action:**  
+I kept the existing caching implementation because the deployed evidence confirmed that Vercel was serving repeated requests from its cache. I made no code change.
+
+### Deliberate unreachable-provider test
+
+I temporarily changed the LTA upstream hostname to a non-existent host and deployed that version to production.
+
+The live product displayed:
+
+“We can't reach LTA right now. Please try again in a few minutes.”
+
+I then restored the real LTA hostname, redeployed, and confirmed `/api/health` returned `keyConfigured: true` and `upstreamStatus: 200`. Live bus arrivals also returned in the production app.
+
+**Action:**  
+I kept the existing unreachable-error handling because the production test showed that it was clearly distinguishable from a provider refusal. I restored the working production configuration immediately after the test.
+
+### Public and mobile verification
+
+I opened the production URL in an Incognito/InPrivate browser without signing into GitHub or Vercel. The product loaded normally and returned live bus arrivals.
+
+I also tested the production product on my phone. The five stop choices were usable, the layout had no obvious horizontal overflow, and the live arrival results were readable.
+
+**Action:**  
+I kept the existing responsive design because the deployed product worked for both a public browser session and the intended mobile use case.
+
+### Late-night empty-state verification
+
+I checked the production product again late at night when bus services had reduced.
+
+For one of the selected stops, the live product displayed:
+
+“No upcoming buses are currently reported for this stop. Choose another nearby stop or check again later.”
+
+This was a genuine EMPTY state from the live product rather than a mocked or deliberately broken response.
+
+**Action:**  
+I kept the existing empty-state handling because the production test showed that it worked when the real source naturally returned no upcoming arrivals. No code change was needed.
