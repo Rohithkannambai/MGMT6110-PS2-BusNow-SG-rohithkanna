@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useState, useEffect} from 'react';
 import {type BusStop, type FetchState} from '../types';
 import {formatArrival, formatFetchedTime} from '../utils/time';
 import {RotateCw} from 'lucide-react';
@@ -6,14 +6,41 @@ import {RotateCw} from 'lucide-react';
 interface ArrivalResultsProps {
   selectedStop: BusStop | null;
   fetchState: FetchState;
+  isRefreshing?: boolean;
+  isOutdatedWarning?: boolean;
   onRefresh: () => void;
 }
 
 export const ArrivalResults: React.FC<ArrivalResultsProps> = ({
   selectedStop,
   fetchState,
+  isRefreshing = false,
+  isOutdatedWarning = false,
   onRefresh,
 }) => {
+  // Live local clock for continuous countdown updates between network refreshes
+  const [currentTime, setCurrentTime] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        setCurrentTime(Date.now());
+      }
+    }, 5000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        setCurrentTime(Date.now());
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
   if (!selectedStop) {
     return (
       <div className="w-full mt-5 py-6 px-4 text-center rounded-xl bg-white border border-[#E2E8F0] text-[#64748B] text-sm shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
@@ -59,14 +86,16 @@ export const ArrivalResults: React.FC<ArrivalResultsProps> = ({
           id="refresh-arrivals-btn"
           type="button"
           onClick={onRefresh}
-          disabled={fetchState.status === 'loading'}
+          disabled={fetchState.status === 'loading' || isRefreshing}
           title="Refresh arrival times"
           className="flex-shrink-0 p-2 text-[#64748B] hover:text-[#B91C1C] hover:bg-rose-50 rounded-lg transition-colors cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
           aria-label="Refresh arrival times"
         >
           <RotateCw
             className={`w-4 h-4 ${
-              fetchState.status === 'loading' ? 'animate-spin text-[#B91C1C]' : ''
+              fetchState.status === 'loading' || isRefreshing
+                ? 'animate-spin text-[#B91C1C]'
+                : ''
             }`}
           />
         </button>
@@ -74,7 +103,17 @@ export const ArrivalResults: React.FC<ArrivalResultsProps> = ({
 
       {/* Content based on service state */}
       <div className="bg-white rounded-b-xl border-x border-b border-[#E2E8F0] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-        {/* State 1: LOADING */}
+        {/* Outdated data warning banner if a background refresh fails */}
+        {isOutdatedWarning && fetchState.status === 'success' && (
+          <div
+            id="warning-outdated-data"
+            className="mb-3.5 py-2.5 px-3 text-[12px] font-medium text-[#92400E] bg-[#FEFCE8] rounded-lg border border-[#FDE047]/80 flex items-center justify-between"
+          >
+            <span>Unable to refresh latest arrivals. Showing earlier data which may be outdated.</span>
+          </div>
+        )}
+
+        {/* State 1: LOADING (Initial load only) */}
         {fetchState.status === 'loading' && (
           <div
             id="state-loading"
@@ -163,7 +202,7 @@ export const ArrivalResults: React.FC<ArrivalResultsProps> = ({
                 {/* Arrival times: up to 3 valid relative times */}
                 <div className="flex items-center gap-1.5 flex-wrap justify-end flex-shrink-0">
                   {svc.arrivals.map((arrivalIso, idx) => {
-                    const relativeText = formatArrival(arrivalIso);
+                    const relativeText = formatArrival(arrivalIso, currentTime);
                     const isArriving = relativeText === 'Arriving';
                     const isFirst = idx === 0;
 
