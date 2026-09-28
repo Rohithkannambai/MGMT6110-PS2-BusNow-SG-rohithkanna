@@ -15635,3 +15635,488 @@ This was a genuine EMPTY state from the live product rather than a mocked or del
 
 **Action:**  
 I kept the existing empty-state handling because the production test showed that it worked when the real source naturally returned no upcoming arrivals. No code change was needed.
+
+
+# Problem Set 4 — Adversarial Collaboration Revision
+
+This section records the adversarial-collaboration prompts, visible agent arguments, rejected alternatives, final decisions, correction prompts, file scopes, and live verification results for the three revisions made to BUSNOW SG.
+
+No blind arbiter was required because the Row 4 severity differences were only 1 versus 2, and I did not rate a missed Row 2 finding as 0.
+
+---
+
+## 1. Destination and Direction Finding
+
+### Reviewer Evidence
+Raised by WK, M and T (H2/H6, severity 3). The original display showed only service numbers, making it impossible for commuters to know which direction a bus was traveling, where it terminated, or whether it was operating as a loop service.
+
+### A. Original Destination Repair — First AI Studio Workspace
+
+#### USER PROMPT — Skeptical review before coding
+
+```text
+Before changing any code, act as a sceptical senior developer and usability reviewer.
+
+Finding:
+Three of four reviewers said BUSNOW shows bus numbers and arrival times, but not where each bus is going. A visitor may therefore see “174” or “111” but still not know which bus to take.
+
+Reviewers raised this under:
+
+- Heuristic 2: Match Between the System and the Real World
+- Heuristic 6: Recognition Rather than Recall
+
+Working severity: 3
+Reach: 3 of 4 reviewers
+
+Proposed repair:
+Keep the current BUSNOW layout, but add one short human-readable destination/direction for each bus, for example:
+“174 · towards Bukit Merah”
+
+Do NOT add a route map, journey planner, or unrelated features.
+
+Before coding, inspect the existing BUSNOW code and answer:
+
+1. Does this repair solve the reviewers’ actual problem?
+2. Is the repair mainly screen-side, system-side, or both?
+3. What destination/direction data is already available in the current backend/API response?
+4. Could using one static destination per bus number be wrong for opposite-direction or loop services?
+5. What existing heuristic could this repair accidentally make worse?
+6. What is the smallest reliable repair you recommend?
+7. How should I test the repaired live app afterward?
+
+Stop after your recommendation.
+
+DO NOT WRITE OR MODIFY ANY CODE YET.
+```
+
+#### VISIBLE GEMINI ARGUMENT — Before code
+
+Gemini argued against treating the label as a complete wayfinding solution. Its main points were:
+
+1. A terminus label would help with direction, but it would not tell an unfamiliar visitor whether the bus passes an intermediate destination.
+2. The change belonged to both halves of the product: the system had to obtain destination data, and the screen had to display it without damaging the mobile layout.
+3. BUSNOW's simplified API returned only service numbers and arrival timestamps, although LTA's upstream `NextBus`, `NextBus2` and `NextBus3` objects contained `DestinationCode`, `OriginCode` and `VisitNumber`.
+4. One global service-number-to-destination mapping would be unsafe for bidirectional and loop services.
+5. The repair could worsen H8 by cluttering narrow cards and H5 by confidently displaying a wrong destination. Gemini explicitly said that showing no destination was safer than showing an incorrect one.
+6. Gemini proposed a smaller alternative: a manually curated `[BusStopCode][ServiceNo] → destination` table for the five campus stops, with clean truncation and an unmapped-service fallback.
+7. It recommended checking every displayed service against an official route source, testing 375px and 390px widths, and confirming that unmapped services still rendered safely.
+
+Gemini also caught that the example in my prompt, `174 · towards Bukit Merah`, was not a reliable terminus description. This was useful disagreement before implementation.
+
+#### USER PROMPT — First implementation authorization
+
+```text
+Build the smallest repair you recommended: add one short, reliable destination/direction label for each bus service using the selected stop + service combination, keep the existing BUSNOW layout and arrival behavior unchanged, and change nothing else.
+```
+
+#### GEMINI RESULT — Static mapping attempt
+
+Gemini created `src/utils/destinations.ts` and changed `src/components/ArrivalResults.tsx`. It described the result as a deterministic mapping for the five campus stops, claimed that the stop-and-service combination handled route direction, and stated that unmapped services would fall back to displaying only the service number. It made no backend change at this stage.
+
+#### USER PROMPT — Verify the generated mapping before pushing
+
+```text
+Do not change any code yet. Print the complete current contents of src/utils/destinations.ts as a clear table with these columns: bus stop code | service number | destination label. I need to verify every destination before pushing this repair. Do not modify anything.
+```
+
+#### HUMAN VERIFICATION AND DECISION — Static mapping rejected
+
+The printed table exposed unreliable data. One clear example was:
+
+| Bus stop | Service | Gemini's generated destination |
+|---|---:|---|
+| YMCA `08041` | `7` | `Bedok` |
+
+Later production output using official LTA data returned Service 7 at YMCA as `Clementi Int`. The generated table therefore looked technically complete but was not trustworthy. I rejected it before it became the final committed repair.
+
+#### USER PROMPT — Reject the stop-and-service table
+
+```text
+The current static destination table contains incorrect mappings, so do not continue with it. Replace the stop+service hardcoded destination approach with the smallest reliable solution that uses the live LTA DestinationCode from each arriving bus and resolves that code to a human-readable bus-stop description. Keep the same small “to [destination]” label in the UI. Do not add route maps or other features, and change nothing unrelated. Before coding, briefly tell me the smallest architecture you will use and which files it will touch.
+```
+
+#### VISIBLE GEMINI RESPONSE — A second manual-map proposal
+
+Gemini correctly proposed passing the live `DestinationCode` from `api/bus.js`, but it still recommended resolving the code in `src/utils/destinations.ts` through a manually maintained `DestinationCode → description` dictionary. It proposed changes to `api/bus.js`, `src/types.ts`, `src/utils/destinations.ts` and `src/components/ArrivalResults.tsx`. I rejected the remaining manually maintained dictionary and required the official LTA BusStops endpoint instead.
+
+#### USER PROMPT — Final official-LTA implementation decision
+
+```text
+Implement Repair 1 now, using the authoritative LTA data rather than any manually maintained destination table.
+
+DECISION:
+The previous stop+service destination table was inaccurate, and I do not want another hand-written DestinationCode -> name table.
+
+Use this data flow instead:
+Live LTA BusArrival
+→ DestinationCode of the first available arriving bus
+→ official LTA BusStops API using that BusStopCode
+→ BusStops.Description
+→ short destination label in BUSNOW.
+
+Requirements:
+In api/bus.js, keep the existing BusArrival request and existing arrival behaviour unchanged.
+
+For each displayed service, take the DestinationCode from the first available bus:
+NextBus first;
+if NextBus has no usable arrival/destination, fall back to NextBus2;
+then NextBus3.
+
+Do not derive destination from service number.
+
+Resolve that DestinationCode using LTA DataMall's official BusStops endpoint with the same server-side LTA_ACCOUNT_KEY.
+Use the BusStopCode request parameter and read the returned Description.
+
+Do not create or keep a manually entered route/destination mapping.
+Delete/replace the inaccurate static mapping currently in src/utils/destinations.ts if it is no longer needed.
+
+Deduplicate destination codes before resolving them and add a simple server-side cache for DestinationCode -> Description so repeated BUSNOW requests do not unnecessarily repeat BusStops lookups.
+Correctness must not depend on the cache existing; if a serverless instance starts cold, it must still work.
+
+If destination resolution fails, is empty, or is uncertain, return null and show the existing service number normally. Never guess a destination and never break the arrival results.
+
+Return one optional human-readable destination field with each service in /api/bus.
+Update src/types.ts accordingly.
+
+In ArrivalResults.tsx, add one quiet secondary label associated with the service number:
+"next bus → [destination]"
+
+Example:
+174
+next bus → Boon Lay
+
+This wording is intentional because LTA provides DestinationCode separately for each arriving bus and we are using the first available bus.
+
+Keep the existing arrival pills, arrival calculations, colours, manual refresh, loading/error states and overall BUSNOW layout unchanged.
+
+At 375px mobile width, the destination label must not cause horizontal scrolling or push the arrival information out of the card. Allow clean truncation if necessary.
+
+Do not add:
+route maps
+intermediate stops
+journey planning
+new screens
+new user features
+unrelated visual changes.
+
+Do not modify Disqus, Microsoft Clarity, the privacy notice, /api/health, environment-variable handling, or expose the LTA key.
+
+Change only what Repair 1 requires.
+
+After implementation:
+list every file changed or deleted;
+explain how destination resolution now works;
+state exactly what caching/fallback behaviour you used;
+run the existing build/type checks;
+report any errors;
+do not make any other improvements.
+```
+
+#### GEMINI RESULT — Official destination resolution
+
+Gemini replaced the rejected static approach with official resolution in `api/bus.js`: it selected the first usable arriving bus's `DestinationCode`, deduplicated destination codes, queried LTA BusStops with the server-side key, cached confirmed descriptions in memory, returned `destination: string | null`, and rendered the quiet `next bus → [destination]` label. It reported successful type and build checks. The temporary static-map file was removed and did not become part of the final committed repair.
+
+#### USER PROMPT — Protect the primary arrival response
+
+```text
+Before I push, check only one thing: make sure a slow or failed LTA BusStops destination lookup can never significantly delay or break the normal BusArrival response. Arrival times must remain the priority. If the current code already guarantees this with a short timeout/fallback, explain how and change nothing. If it does not, add the smallest timeout/fallback needed so that destination resolution fails gracefully to null and the normal arrival results still return. Change nothing else. Then run the build/type checks again.
+```
+
+#### VISIBLE GEMINI RESPONSE — Timeout weakness found
+
+Gemini reported that the implementation had `try/catch` handling but no deterministic upper bound if LTA BusStops stalled. It added a 1.2-second abort limit and a 1.2-second `Promise.race` ceiling in `api/bus.js`. Failed, aborted or incomplete destination enrichment fell back to `null`, while the normal arrival response remained available. It reported that the type check and build passed and that no other component was changed in this correction.
+
+#### WORKSPACE CONTINUITY NOTE
+
+The original AI Studio workspace later could not sync safely to the existing GitHub repository and offered unsafe alternatives such as creating another repository or force-pushing. I rejected those options. I imported the existing GitHub repository into a new AI Studio workspace, restored unrelated automatically migrated files to the GitHub baseline, and transferred only the verified repair files through the local repository. The exact recovery prompt is unavailable, so it is not reconstructed here.
+
+The first deployed destination repair therefore came from official `DestinationCode → BusStops.Description`, not from the rejected static table. Live testing after that deployment exposed missing labels for loop services, which led to the refinement below.
+
+### B. Loop-Service Refinement and Reliable Targeted Lookup
+
+### Prompts Sent
+
+#### Prompt 1 — Initial loop-service refinement
+*(Note: Prompt 1 contained an early hypothesis that the missing services were loop services and included example locations. This is labelled strictly as the original prompt hypothesis—not as independently verified evidence. The later challenge, correction, official API results and production testing established the final verified values.)*
+
+```text
+Repair 1 needs one small correction based on live production testing.
+
+Observed production evidence from /api/bus?stop=08041:
+- Service 36 returns destination: null
+- Service 64 returns destination: null
+- normal services such as 7, 14, 77, 106, etc. return valid destination names
+
+The missing services are loop services.
+
+Refine Repair 1 only:
+
+1. Keep the existing live DestinationCode -> official LTA BusStops.Description logic for normal services.
+
+2. For services where the destination cannot be resolved, determine whether the service is a loop service using official LTA Bus Services data.
+
+3. If it is a loop service and LoopDesc is available, return a separate human-readable direction label such as:
+   "loop via Tomlinson Rd"
+   "loop via Mei Ling St"
+   "loop via Temasek Ave"
+
+4. Do not guess loop locations or hard-code route names if official LTA data can provide LoopDesc.
+
+5. Cache any Bus Services metadata used so this does not add repeated network calls on every refresh.
+
+6. Preserve the current 1.2 second protection so enrichment can never significantly delay arrival times.
+
+7. Change the UI wording for normal resolved destinations from:
+   "next bus → Clementi Int"
+   to:
+   "towards Clementi Int"
+
+8. For loop services show:
+   "loop via [LoopDesc]"
+
+9. Keep the rest of BUSNOW unchanged.
+
+10. Do not modify Disqus, Clarity, privacy notice, /api/health, arrival calculations, refresh behaviour, stop selection, colours, or unrelated UI.
+
+Before coding, tell me:
+- whether this is the smallest reliable refinement;
+- which files it will touch;
+- whether LTA Bus Services data can provide LoopDesc without a manually maintained map.
+
+STOP before writing code.
+```
+
+#### Prompt 2 — First implementation authorization
+
+```text
+I’ve considered your recommendation and I want to proceed with the smaller repair.
+
+Please use LTA’s official `LoopDesc` only when the normal destination cannot be resolved. Keep `destination` and `loopDescription` separate.
+
+Show normal services as “towards [destination]” and loop services as “loop via [LoopDesc]”. Keep one shared 1.2-second timeout for all enrichment.
+
+Change only `api/bus.js`, `src/types.ts`, and `src/components/ArrivalResults.tsx`. Do not hard-code loop locations or change anything else.
+
+Afterwards, tell me exactly what changed and whether the build and type checks passed.
+```
+
+#### Prompt 3 — Cache and timeout correction
+
+```text
+I reviewed the code and found three small issues in `api/bus.js`.
+
+Please verify the returned `ServiceNo` exactly matches the requested service before using its `LoopDesc`. Do not cache `null` when LTA returns a non-200 response, network failure or timeout; cache it only after a successful response confirms an empty LoopDesc.
+
+Also replace the two separate 1.2-second timers with one shared timeout that both aborts the pending requests and releases the enrichment wait.
+
+Change only `api/bus.js` and nothing else. Then run the build and type checks and explain exactly what you corrected.
+```
+
+#### Prompt 4 — Cold-versus-warm diagnosis
+
+```text
+I tested production again at stop 08041. Most normal destinations appeared on the second request, but service 167 is still null, and loop services 36 and 64 still have no loopDescription.
+
+The first and second requests returned different destination coverage. This suggests the BusStops cache may be filling gradually across requests instead of completing reliably within one request.
+
+Before changing anything, inspect api/bus.js and explain the exact cause of this cold-versus-warm behaviour. Also explain why the targeted BusServices lookup is not returning LoopDesc for 36 and 64.
+
+Recommend the smallest reliable correction without increasing the timeout or hard-coding locations.
+
+STOP before writing or modifying code.
+```
+
+#### Prompt 5 — Challenge to full pagination
+
+```text
+Your diagnosis makes sense, but do not build the 11-page parallel scan yet.
+
+LTA’s current API guide says BusStops supports `BusStopCode` and BusServices supports `ServiceNo`. Compare targeted lookups with downloading all 11 BusStops pages on every cold start.
+
+Can you keep the OriginCode and DestinationCode from BusArrival, use matching codes only as loop candidates, and query BusServices for those candidates? Normal destination codes should use targeted BusStops requests.
+
+Both lookup groups should run concurrently within the existing single 1.2-second deadline. Do not rely on Vercel’s memory cache being permanent.
+
+Recommend the smallest exact design and files affected. STOP before modifying code.
+```
+
+#### Prompt 6 — Final targeted implementation authorization
+
+```text
+I’ve considered both approaches and I choose the targeted lookup design.
+
+Implement it only in `api/bus.js`. Extract OriginCode and DestinationCode from the same first usable arriving bus. Treat a service as a loop candidate only when both codes are non-empty and exactly equal.
+
+Verify the returned BusStopCode or ServiceNo exactly matches the request before caching it. Do not cache failures, non-200 responses or timeouts.
+
+Run the normal destination and loop lookups concurrently under the existing single 1.2-second deadline. Arrival results must still return if enrichment fails.
+
+Do not change any other file or feature. Afterwards, run the build and type checks and explain exactly what changed.
+```
+
+### Loop-Refinement Agent Arguments and Human Decisions
+- During the loop refinement, the agent first proposed official `LoopDesc` enrichment but initially presented some exact loop values without live verification.
+- After I challenged this, the agent acknowledged the unsupported inference and agreed that values must never be guessed or hard-coded.
+- The first implementation’s full BusStops scan exhausted the shared deadline and starved loop lookups.
+- The agent diagnosed the cold-versus-warm cache behaviour and proposed parallel full pagination.
+- I rejected full pagination and chose targeted official lookups using `BusStopCode` and `ServiceNo`.
+- The final targeted design was implemented only after my approval.
+
+### Approved File Scope
+- `api/bus.js`
+- `src/types.ts`
+- `src/components/ArrivalResults.tsx`
+
+### Live Verification Result
+Verified on production using real Singapore routes:
+- Service **167** displayed: `"towards Sembawang Int"`
+- Service **36** displayed: `"loop via Tomlinson Rd"`
+- Service **64** displayed: `"loop via Mei Ling St"`
+- Service **111** displayed: `"loop via Temasek Ave"`
+- Services **972** and **972M** displayed: `"loop via Bencoolen St"`
+
+---
+
+## 2. Stale Arrivals Finding
+
+### Reviewer Evidence
+Raised by WK and T (H1, severity 3). The arrival times and `Fetched at` timestamp remained unchanged indefinitely until the visitor manually refreshed the page.
+
+### Argue-First Prompt
+```text
+Now consider only the stale-arrival finding raised by Wee Khee and Tusti. The arrival times and “Fetched at” value stay unchanged until the visitor manually refreshes.
+
+Before coding, argue against adding a 30-second auto-refresh and identify any regressions it could cause.
+
+Inspect the current App.tsx and ArrivalResults.tsx. Consider loading-screen flicker, overlapping requests, switching stops, browser tabs in the background, Vercel caching and unnecessary LTA requests.
+
+Recommend the smallest reliable repair that keeps existing results visible during refresh, prevents overlapping requests and makes the data freshness clear.
+
+Tell me exactly which files would change and how we should test it on the live app.
+
+STOP before writing or modifying code.
+```
+
+### Visible Agent Objections
+1. **Destructive Loading-Screen Flicker**: Calling `setFetchState({ status: 'loading' })` on every tick would unmount the timetable and flash the full-height spinner every 30 seconds while commuters tried to read arrival times.
+2. **Background Tab and Resource Drain**: A standard `setInterval` would run unchecked when the tab was hidden or a phone was pocketed, consuming data, battery, and serverless execution quotas.
+3. **Upstream LTA Rate Limiting (429)**: Background polling across multiple active tabs risks exhausting LTA API quotas.
+4. **Race Conditions & Stop Switching**: An auto-refresh request initiated for one stop could resolve after the user had clicked a different stop, overwriting the new stop with old data.
+5. **Vercel Edge Cache Invalidation**: Using cache-busting query strings (`?_t=...`) would bypass Vercel's `s-maxage=20, stale-while-revalidate=40` cache and flood the origin.
+6. **Error Destructiveness**: A transient network failure during a background refresh would wipe out currently visible arrivals and replace them with a full error screen.
+
+### Alternatives Rejected
+- **Local Countdown Timer Only (No Network Refresh)**: The agent initially recommended only a local 10-second `setInterval` to decrement minutes client-side with zero network calls. I rejected this because LTA arrival estimates fluctuate, buses get delayed or cancelled, and new arrivals appear, so the application still requires genuine background network refreshes.
+- **Unconstrained 30-Second Polling (`setInterval` without visibility check)**: Rejected due to battery drain, background tab spam, and quota risks.
+- **Cache-Busting Query Parameters**: Rejected because it prevents edge cache hits across commuters at the same stop.
+
+### Revision Prompt
+```text
+The local countdown is useful, but it does not fully repair the finding. LTA arrival estimates can change, buses can disappear, and new arrivals can appear, so the app still needs genuine background data refreshes.
+
+Revise the recommendation to include a quiet 30-second network refresh only while a stop is selected and the tab is visible. Keep the existing list on screen, prevent overlapping requests, and refresh immediately when the visitor returns to a stale tab.
+
+Explain how the refresh will obtain genuinely updated data despite the current Vercel `s-maxage=20, stale-while-revalidate=40` caching, without creating unnecessary unique requests.
+
+A failed background refresh must keep the old results visible but clearly say they may be outdated. Initial loading can keep the existing full spinner.
+
+Also use only BUSNOW’s real stop codes; `08057` is not one of them. Recommend the smallest design and exact files again.
+
+STOP before modifying code.
+```
+
+### Implementation Prompt
+```text
+I’ve considered the risks and I want to proceed with the quiet 30-second auto-refresh and live countdown.
+
+Change only `src/App.tsx` and `src/components/ArrivalResults.tsx`. Keep the full spinner for the first load, but keep existing results visible during every later manual or automatic refresh and spin only the refresh icon.
+
+Poll only while a stop is selected and the tab is visible. When returning to a tab that has been stale for at least 30 seconds, refresh immediately.
+
+An interval refresh should skip an existing request. A stop change must abort the old request, and an old response must never overwrite the newly selected stop.
+
+If a background refresh fails, preserve the existing results and show the outdated-data warning. Clean up all timers and requests properly.
+
+Keep the canonical API URL with `cache: 'no-cache'`. Do not change the backend, types or unrelated UI. Run the build and type checks and explain exactly what changed.
+```
+
+### Correction Prompt (Audit Finding: Cross-Stop State Bug)
+```text
+I audited the implementation and found one cross-stop state bug in `App.tsx`.
+
+`hasExistingData` currently becomes true from the previous stop’s success state. Therefore, selecting a new stop can keep the old stop’s buses visible under the new stop heading. A failed new-stop request can also preserve the wrong timetable.
+
+Quiet preservation must apply only when `isBackgroundRefresh` is true for the currently selected stop. A normal stop change must always use the initial loading state and must not preserve the previous stop’s results.
+
+Also repeat the aborted-request and selected-stop check after `response.json()` and before updating any state.
+
+Change only `src/App.tsx`. Do not change `ArrivalResults.tsx` or anything else. Run the build and type checks again.
+```
+
+### Approved File Scope
+- `src/App.tsx`
+- `src/components/ArrivalResults.tsx`
+
+### Verification Results
+1. **Live Verification**:
+   - The countdown changed dynamically via the local clock.
+   - The `Fetched at` timestamp updated automatically after approximately one minute without any full-screen reload or flicker; only the header refresh icon spun quietly during network updates.
+   - Rapid switching from SMU (`04121`) to Bencoolen Stn Exit B (`08069`) aborted the earlier request and showed only Bencoolen results without old stop data lingering.
+2. **Code Audit Confirmation**:
+   - Confirmed through code audit: if a background refresh fails, existing timetable cards remain visible on screen, and `isOutdatedWarning` renders the warning banner (`"Unable to refresh latest arrivals. Showing earlier data which may be outdated."`) without clearing results.
+
+---
+
+## 3. Long-List Scanability Finding
+
+### Reviewer Evidence
+Raised by M, T and A (H7/H8, severity 2). Stops with many bus services, such as YMCA (`08041`) which returned 17 services, produced an excessively long vertical list that made the page hard to scan on mobile.
+
+### Argue-First Prompt
+```text
+For the long-list finding, my preferred repair is to show a maximum of five bus services initially.
+
+If a stop has more than five services, add a clear button such as “Show 12 more services”. When expanded, show every service and provide “Show fewer services”.
+
+Before coding, argue against this idea. Consider whether hiding services makes a known bus harder to find, whether the first five could seem like recommendations, and how it should behave during auto-refresh and when changing stops.
+
+Compare it briefly with a bus-number filter, but keep the repair small. Do not change service order, destination labels or arrival times.
+
+Recommend the exact behaviour, accessibility wording and files affected.
+
+STOP before modifying code.
+```
+
+### Visible Agent Objections
+1. **Hiding Known Buses**: Hiding services beyond the first five makes high-numbered routes harder to find by default, requiring commuters to take an extra tap to find their bus.
+2. **Perception as Recommendations**: Commuters could misinterpret the visible five services as curated recommendations or the soonest-arriving buses rather than simply the first items in the provider list.
+3. **Accidental Collapse During Auto-Refresh**: If expansion state reset on every 30-second network refresh, an expanded list would collapse while the commuter was actively reading it.
+
+### Comparison
+Compared briefly with a quick bus-number search filter: typing requires an extra input field and triggers the mobile on-screen keyboard, whereas the truncation toggle is simpler, avoids form state, and keeps the repair minimal while preserving the existing provider order.
+
+### Implementation Prompt
+```text
+I’ve considered the tradeoff and I want to proceed with the five-service “Show more” repair.
+
+Change only `src/components/ArrivalResults.tsx`. Show every service when there are five or fewer. When there are more than five, show the first five in the existing order and add “Show [N] more services”.
+
+When expanded, show the complete list and “Show fewer services”. Keep the expanded state during automatic refreshes, but reset it when the selected stop changes.
+
+Preserve every existing destination, loop label, arrival time and row style. Do not add filtering, favourites or any other feature.
+
+Include `aria-expanded`, `aria-controls` and clear screen-reader wording. Change nothing else.
+
+Run the build and type checks and explain exactly what changed.
+```
+
+### Approved File Scope
+- `src/components/ArrivalResults.tsx`
+
+### Verification Results
+1. **Live Verification**:
+   - Confirmed the live Show-more control at YMCA (`08041`), which returned 17 services: the app initially displayed the first 5 services in the existing provider order and rendered the button: `"Show 12 more services"`.
+   - Clicking the button expanded the full list of 17 services in place and changed the label to `"Show fewer services"`.
+2. **Code Audit Confirmation**:
+   - Confirmed through code audit: `isExpanded` is preserved across quiet 30-second refreshes without collapsing, and selecting a different stop cleanly resets `isExpanded` to `false` via `useEffect`.
+   - Accessible semantics confirmed: `aria-expanded={isExpanded}`, `aria-controls="services-list"`, and `.sr-only` descriptions (`", currently showing 5 of 17 services"` and `", showing all 17 services"`).
