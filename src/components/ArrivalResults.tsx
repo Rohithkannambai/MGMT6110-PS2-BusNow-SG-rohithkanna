@@ -21,6 +21,14 @@ export const ArrivalResults: React.FC<ArrivalResultsProps> = ({
   // Live local clock for continuous countdown updates between network refreshes
   const [currentTime, setCurrentTime] = useState<number>(() => Date.now());
 
+  // Track whether full services list is expanded (when > 5 services)
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
+
+  // Reset expanded state whenever the selected stop changes
+  useEffect(() => {
+    setIsExpanded(false);
+  }, [selectedStop?.code]);
+
   useEffect(() => {
     const timer = setInterval(() => {
       if (document.visibilityState === 'visible') {
@@ -175,66 +183,100 @@ export const ArrivalResults: React.FC<ArrivalResultsProps> = ({
         )}
 
         {/* Normal Success State: Bus Services List */}
-        {fetchState.status === 'success' && (
-          <div className="divide-y divide-[#F1F5F9]" id="services-list">
-            {fetchState.data.services.map((svc) => (
-              <div
-                key={svc.service}
-                id={`service-row-${svc.service}`}
-                className="py-3.5 first:pt-0.5 last:pb-0.5 flex items-center justify-between gap-3"
-              >
-                {/* Prominent Service Number & quiet destination/loop label */}
-                <div className="flex flex-col items-start min-w-0 pr-2">
-                  <span className="text-[21px] font-black font-mono tracking-tight text-[#0F172A] px-2.5 py-1 bg-[#F8FAFC] rounded-lg inline-block border border-[#CBD5E1]/80 min-w-[58px] text-center shadow-2xs">
-                    {svc.service}
-                  </span>
-                  {svc.destination ? (
-                    <span className="text-[11px] text-[#64748B] mt-1 font-normal leading-tight">
-                      towards {svc.destination}
-                    </span>
-                  ) : svc.loopDescription ? (
-                    <span className="text-[11px] text-[#64748B] mt-1 font-normal leading-tight">
-                      loop via {svc.loopDescription}
-                    </span>
-                  ) : null}
-                </div>
+        {fetchState.status === 'success' && (() => {
+          const allServices = fetchState.data.services;
+          const hasMore = allServices.length > 5;
+          const displayedServices = hasMore && !isExpanded ? allServices.slice(0, 5) : allServices;
+          const remainingCount = allServices.length - 5;
 
-                {/* Arrival times: up to 3 valid relative times */}
-                <div className="flex items-center gap-1.5 flex-wrap justify-end flex-shrink-0">
-                  {svc.arrivals.map((arrivalIso, idx) => {
-                    const relativeText = formatArrival(arrivalIso, currentTime);
-                    const isArriving = relativeText === 'Arriving';
-                    const isFirst = idx === 0;
-
-                    let badgeClass = '';
-                    if (isArriving) {
-                      // Restrained green treatment for "Arriving"
-                      badgeClass = isFirst
-                        ? 'bg-[#15803D] text-white font-bold shadow-xs'
-                        : 'bg-[#DCFCE7] text-[#166534] border border-[#86EFAC] font-semibold';
-                    } else if (isFirst) {
-                      // First arrival is visually strongest (crimson transit accent)
-                      badgeClass = 'bg-[#B91C1C] text-white font-bold shadow-xs';
-                    } else {
-                      // Second and third arrivals are quieter but readable
-                      badgeClass = 'bg-[#F8FAFC] text-[#475569] border border-[#E2E8F0] font-medium';
-                    }
-
-                    return (
-                      <span
-                        key={idx}
-                        id={`arrival-${svc.service}-${idx}`}
-                        className={`text-[12px] px-2.5 py-1 rounded-md whitespace-nowrap transition-colors ${badgeClass}`}
-                      >
-                        {relativeText}
+          return (
+            <>
+              <div className="divide-y divide-[#F1F5F9]" id="services-list">
+                {displayedServices.map((svc) => (
+                  <div
+                    key={svc.service}
+                    id={`service-row-${svc.service}`}
+                    className="py-3.5 first:pt-0.5 last:pb-0.5 flex items-center justify-between gap-3"
+                  >
+                    {/* Prominent Service Number & quiet destination/loop label */}
+                    <div className="flex flex-col items-start min-w-0 pr-2">
+                      <span className="text-[21px] font-black font-mono tracking-tight text-[#0F172A] px-2.5 py-1 bg-[#F8FAFC] rounded-lg inline-block border border-[#CBD5E1]/80 min-w-[58px] text-center shadow-2xs">
+                        {svc.service}
                       </span>
-                    );
-                  })}
-                </div>
+                      {svc.destination ? (
+                        <span className="text-[11px] text-[#64748B] mt-1 font-normal leading-tight">
+                          towards {svc.destination}
+                        </span>
+                      ) : svc.loopDescription ? (
+                        <span className="text-[11px] text-[#64748B] mt-1 font-normal leading-tight">
+                          loop via {svc.loopDescription}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {/* Arrival times: up to 3 valid relative times */}
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end flex-shrink-0">
+                      {svc.arrivals.map((arrivalIso, idx) => {
+                        const relativeText = formatArrival(arrivalIso, currentTime);
+                        const isArriving = relativeText === 'Arriving';
+                        const isFirst = idx === 0;
+
+                        let badgeClass = '';
+                        if (isArriving) {
+                          // Restrained green treatment for "Arriving"
+                          badgeClass = isFirst
+                            ? 'bg-[#15803D] text-white font-bold shadow-xs'
+                            : 'bg-[#DCFCE7] text-[#166534] border border-[#86EFAC] font-semibold';
+                        } else if (isFirst) {
+                          // First arrival is visually strongest (crimson transit accent)
+                          badgeClass = 'bg-[#B91C1C] text-white font-bold shadow-xs';
+                        } else {
+                          // Second and third arrivals are quieter but readable
+                          badgeClass = 'bg-[#F8FAFC] text-[#475569] border border-[#E2E8F0] font-medium';
+                        }
+
+                        return (
+                          <span
+                            key={idx}
+                            id={`arrival-${svc.service}-${idx}`}
+                            className={`text-[12px] px-2.5 py-1 rounded-md whitespace-nowrap transition-colors ${badgeClass}`}
+                          >
+                            {relativeText}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+
+              {hasMore && (
+                <div className="pt-3 border-t border-[#F1F5F9] mt-1.5 text-center">
+                  <button
+                    id="toggle-services-btn"
+                    type="button"
+                    onClick={() => setIsExpanded((prev) => !prev)}
+                    aria-expanded={isExpanded}
+                    aria-controls="services-list"
+                    className="w-full py-2.5 px-4 text-[13px] font-medium text-[#475569] hover:text-[#B91C1C] hover:bg-[#F8FAFC] rounded-lg border border-[#E2E8F0] transition-colors cursor-pointer"
+                  >
+                    {isExpanded ? (
+                      <>
+                        <span>Show fewer services</span>
+                        <span className="sr-only">, showing all {allServices.length} services</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Show {remainingCount} more services</span>
+                        <span className="sr-only">, currently showing 5 of {allServices.length} services</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
     </section>
   );
