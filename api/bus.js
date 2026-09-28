@@ -6,11 +6,13 @@
 
 // In-memory cache for resolved bus stop descriptions
 const busStopCache = new Map();
-// In-memory cache for resolved service loop descriptions (null if non-loop)
+// In-memory cache for resolved service loop descriptions (null if confirmed non-loop)
 const serviceLoopCache = new Map();
 
-async function fetchBusStopsPage(skip, apiKey, signal) {
-  const url = `https://datamall2.mytransport.sg/ltaodataservice/BusStops?$skip=${skip}`;
+async function fetchTargetedBusStop(busStopCode, apiKey, signal) {
+  const targetCode = String(busStopCode).trim();
+  const encodedCode = encodeURIComponent(targetCode);
+  const url = `https://datamall2.mytransport.sg/ltaodataservice/BusStops?BusStopCode=${encodedCode}`;
   const response = await fetch(url, {
     method: 'GET',
     headers: {
@@ -18,37 +20,43 @@ async function fetchBusStopsPage(skip, apiKey, signal) {
     },
     signal,
   });
-  if (!response.ok) return [];
+
+  if (!response.ok) {
+    throw new Error(`LTA BusStops returned HTTP ${response.status}`);
+  }
+
   const json = await response.json();
-  return Array.isArray(json?.value) ? json.value : [];
+  const list = Array.isArray(json?.value) ? json.value : [];
+
+  // Match exact BusStopCode before caching
+  const match = list.find(
+    (item) => String(item?.BusStopCode || '').trim() === targetCode
+  );
+
+  if (match && typeof match?.Description === 'string' && match.Description.trim().length > 0) {
+    return { confirmed: true, description: match.Description.trim() };
+  }
+
+  return { confirmed: false, description: null };
 }
 
-async function resolveDestinations(neededCodes, apiKey, signal) {
-  const isMissing = () => neededCodes.some((c) => !busStopCache.has(c));
-  if (!isMissing()) return;
+async function resolveTargetedBusStops(stopCodes, apiKey, signal) {
+  const uncached = stopCodes.filter((code) => !busStopCache.has(code));
+  if (uncached.length === 0) return;
 
-  const skips = [0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000];
-  const batchSize = 3;
-
-  for (let i = 0; i < skips.length; i += batchSize) {
-    if (!isMissing()) break;
-    if (signal?.aborted) break;
-
-    const currentBatch = skips.slice(i, i + batchSize);
-    const results = await Promise.allSettled(
-      currentBatch.map((skip) => fetchBusStopsPage(skip, apiKey, signal))
-    );
-
-    for (const res of results) {
-      if (res.status === 'fulfilled' && Array.isArray(res.value)) {
-        for (const stop of res.value) {
-          if (stop?.BusStopCode && stop?.Description) {
-            busStopCache.set(String(stop.BusStopCode).trim(), String(stop.Description).trim());
-          }
+  await Promise.allSettled(
+    uncached.map(async (code) => {
+      if (signal?.aborted) return;
+      try {
+        const result = await fetchTargetedBusStop(code, apiKey, signal);
+        if (result?.confirmed && result.description) {
+          busStopCache.set(code, result.description);
         }
+      } catch {
+        // Do not cache failures, non-200 responses, or timeouts
       }
-    }
-  }
+    })
+  );
 }
 
 async function fetchServiceLoopDesc(serviceNo, apiKey, signal) {
@@ -203,13 +211,17 @@ export default async function handler(req, res) {
 
     // If a service contains zero valid arrival timestamps, omit that service
     if (arrivals.length > 0) {
-      // Take DestinationCode from the first available arriving bus (NextBus -> NextBus2 -> NextBus3)
+      // Extract OriginCode and DestinationCode from the same first usable arriving bus (NextBus -> NextBus2 -> NextBus3)
+      let originCode = null;
       let destinationCode = null;
       const busCandidates = [item?.NextBus, item?.NextBus2, item?.NextBus3];
       for (const bus of busCandidates) {
         if (bus && typeof bus.EstimatedArrival === 'string' && bus.EstimatedArrival.trim().length > 0) {
-          if (bus.DestinationCode && String(bus.DestinationCode).trim().length > 0) {
-            destinationCode = String(bus.DestinationCode).trim();
+          const dest = bus.DestinationCode ? String(bus.DestinationCode).trim() : '';
+          const orig = bus.OriginCode ? String(bus.OriginCode).trim() : '';
+          if (dest.length > 0) {
+            destinationCode = dest;
+            originCode = orig.length > 0 ? orig : null;
             break;
           }
         }
@@ -218,22 +230,43 @@ export default async function handler(req, res) {
         for (const bus of busCandidates) {
           if (bus && bus.DestinationCode && String(bus.DestinationCode).trim().length > 0) {
             destinationCode = String(bus.DestinationCode).trim();
+            const orig = bus.OriginCode ? String(bus.OriginCode).trim() : '';
+            originCode = orig.length > 0 ? orig : null;
             break;
           }
         }
       }
 
+      // Treat a service as a loop candidate only when both codes are non-empty and exactly equal
+      const isLoopCandidate = Boolean(
+        originCode && destinationCode && originCode === destinationCode
+      );
+
       parsedServices.push({
         service: String(serviceNo),
+        originCode,
         destinationCode,
+        isLoopCandidate,
         arrivals,
       });
     }
   }
 
-  // Resolve unique destination codes and loop descriptions within a single shared ~1.2s timeout
-  const uniqueDestinationCodes = [
-    ...new Set(parsedServices.map((s) => s.destinationCode).filter(Boolean)),
+  // Separate into normal destination codes vs. loop candidate service numbers
+  const normalStopCodes = [
+    ...new Set(
+      parsedServices
+        .filter((s) => !s.isLoopCandidate && s.destinationCode)
+        .map((s) => s.destinationCode)
+    ),
+  ];
+
+  const loopServiceCandidates = [
+    ...new Set(
+      parsedServices
+        .filter((s) => s.isLoopCandidate)
+        .map((s) => s.service)
+    ),
   ];
 
   const controller = new AbortController();
@@ -245,24 +278,11 @@ export default async function handler(req, res) {
     }, 1200);
   });
 
-  const enrichmentPromise = (async () => {
-    // Stage 1: Resolve destinations through official BusStops endpoint
-    if (uniqueDestinationCodes.length > 0) {
-      await resolveDestinations(uniqueDestinationCodes, apiKey, controller.signal);
-    }
-
-    if (controller.signal.aborted) return;
-
-    // Stage 2: Identify services where destination could not be resolved, and check LoopDesc
-    const unresolvedServices = parsedServices
-      .filter((s) => !s.destinationCode || !busStopCache.has(s.destinationCode))
-      .map((s) => s.service);
-
-    const uniqueUnresolved = [...new Set(unresolvedServices)];
-    if (uniqueUnresolved.length > 0) {
-      await resolveLoopDescriptions(uniqueUnresolved, apiKey, controller.signal);
-    }
-  })();
+  // Run normal destination and loop lookups concurrently under the single shared ~1.2s deadline
+  const enrichmentPromise = Promise.allSettled([
+    resolveTargetedBusStops(normalStopCodes, apiKey, controller.signal),
+    resolveLoopDescriptions(loopServiceCandidates, apiKey, controller.signal),
+  ]);
 
   try {
     await Promise.race([
@@ -276,11 +296,15 @@ export default async function handler(req, res) {
   }
 
   const finalServices = parsedServices.map((s) => {
-    const dest = s.destinationCode ? (busStopCache.get(s.destinationCode) || null) : null;
+    let dest = null;
     let loopDesc = null;
-    if (!dest) {
+
+    if (s.isLoopCandidate) {
       loopDesc = serviceLoopCache.get(s.service) || null;
+    } else if (s.destinationCode) {
+      dest = busStopCache.get(s.destinationCode) || null;
     }
+
     return {
       service: s.service,
       destination: dest,
