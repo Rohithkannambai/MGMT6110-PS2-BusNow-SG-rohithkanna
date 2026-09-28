@@ -11,6 +11,7 @@ export interface BusStop {
 export interface BusServiceArrival {
   service: string;
   destination: string | null;
+  loopDescription: string | null;
   arrivals: string[];
 }
 

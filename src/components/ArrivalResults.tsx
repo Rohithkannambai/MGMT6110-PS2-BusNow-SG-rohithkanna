@@ -144,16 +144,20 @@ export const ArrivalResults: React.FC<ArrivalResultsProps> = ({
                 id={`service-row-${svc.service}`}
                 className="py-3.5 first:pt-0.5 last:pb-0.5 flex items-center justify-between gap-3"
               >
-                {/* Prominent Service Number & quiet destination label */}
+                {/* Prominent Service Number & quiet destination/loop label */}
                 <div className="flex flex-col items-start min-w-0 pr-2">
                   <span className="text-[21px] font-black font-mono tracking-tight text-[#0F172A] px-2.5 py-1 bg-[#F8FAFC] rounded-lg inline-block border border-[#CBD5E1]/80 min-w-[58px] text-center shadow-2xs">
                     {svc.service}
                   </span>
-                  {svc.destination && (
+                  {svc.destination ? (
                     <span className="text-[11px] text-[#64748B] mt-1 font-normal leading-tight">
-                      next bus → {svc.destination}
+                      towards {svc.destination}
                     </span>
-                  )}
+                  ) : svc.loopDescription ? (
+                    <span className="text-[11px] text-[#64748B] mt-1 font-normal leading-tight">
+                      loop via {svc.loopDescription}
+                    </span>
+                  ) : null}
                 </div>
 
                 {/* Arrival times: up to 3 valid relative times */}

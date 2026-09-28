@@ -6,6 +6,8 @@
 
 // In-memory cache for resolved bus stop descriptions
 const busStopCache = new Map();
+// In-memory cache for resolved service loop descriptions (null if non-loop)
+const serviceLoopCache = new Map();
 
 async function fetchBusStopsPage(skip, apiKey, signal) {
   const url = `https://datamall2.mytransport.sg/ltaodataservice/BusStops?$skip=${skip}`;
@@ -47,6 +49,65 @@ async function resolveDestinations(neededCodes, apiKey, signal) {
       }
     }
   }
+}
+
+async function fetchServiceLoopDesc(serviceNo, apiKey, signal) {
+  const targetSvc = String(serviceNo).trim().toUpperCase();
+  const encodedSvc = encodeURIComponent(serviceNo);
+  const url = `https://datamall2.mytransport.sg/ltaodataservice/BusServices?ServiceNo=${encodedSvc}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      AccountKey: apiKey,
+    },
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`LTA BusServices returned HTTP ${response.status}`);
+  }
+
+  const json = await response.json();
+  const list = Array.isArray(json?.value) ? json.value : [];
+
+  // Filter to records that exactly match the requested ServiceNo
+  const matchingRecords = list.filter(
+    (item) => String(item?.ServiceNo || '').trim().toUpperCase() === targetSvc
+  );
+
+  // If LTA returned no matching record for this service, do not confirm
+  if (matchingRecords.length === 0) {
+    return { confirmed: false, loopDesc: null };
+  }
+
+  // Look for a non-empty LoopDesc among matching records
+  for (const record of matchingRecords) {
+    if (typeof record?.LoopDesc === 'string' && record.LoopDesc.trim().length > 0) {
+      return { confirmed: true, loopDesc: record.LoopDesc.trim() };
+    }
+  }
+
+  // Confirmed: LTA successfully returned records for this service and LoopDesc is empty
+  return { confirmed: true, loopDesc: null };
+}
+
+async function resolveLoopDescriptions(neededServices, apiKey, signal) {
+  const uncached = neededServices.filter((s) => !serviceLoopCache.has(s));
+  if (uncached.length === 0) return;
+
+  await Promise.allSettled(
+    uncached.map(async (svc) => {
+      if (signal?.aborted) return;
+      try {
+        const result = await fetchServiceLoopDesc(svc, apiKey, signal);
+        if (result?.confirmed) {
+          serviceLoopCache.set(svc, result.loopDesc);
+        }
+      } catch {
+        // Non-200, network failure, or timeout/abort: DO NOT cache
+      }
+    })
+  );
 }
 
 export default async function handler(req, res) {
@@ -170,34 +231,63 @@ export default async function handler(req, res) {
     }
   }
 
-  // Resolve unique destination codes server-side with ~1.2s timeout cap
+  // Resolve unique destination codes and loop descriptions within a single shared ~1.2s timeout
   const uniqueDestinationCodes = [
     ...new Set(parsedServices.map((s) => s.destinationCode).filter(Boolean)),
   ];
 
-  if (uniqueDestinationCodes.length > 0) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
+  const controller = new AbortController();
+  let timeoutId;
+  const timeoutPromise = new Promise((resolve) => {
+    timeoutId = setTimeout(() => {
       controller.abort();
+      resolve();
     }, 1200);
+  });
 
-    try {
-      await Promise.race([
-        resolveDestinations(uniqueDestinationCodes, apiKey, controller.signal),
-        new Promise((resolve) => setTimeout(resolve, 1200)),
-      ]);
-    } catch {
-      // Resolution timeout or error should never delay or fail arrival results
-    } finally {
-      clearTimeout(timeoutId);
+  const enrichmentPromise = (async () => {
+    // Stage 1: Resolve destinations through official BusStops endpoint
+    if (uniqueDestinationCodes.length > 0) {
+      await resolveDestinations(uniqueDestinationCodes, apiKey, controller.signal);
     }
+
+    if (controller.signal.aborted) return;
+
+    // Stage 2: Identify services where destination could not be resolved, and check LoopDesc
+    const unresolvedServices = parsedServices
+      .filter((s) => !s.destinationCode || !busStopCache.has(s.destinationCode))
+      .map((s) => s.service);
+
+    const uniqueUnresolved = [...new Set(unresolvedServices)];
+    if (uniqueUnresolved.length > 0) {
+      await resolveLoopDescriptions(uniqueUnresolved, apiKey, controller.signal);
+    }
+  })();
+
+  try {
+    await Promise.race([
+      enrichmentPromise,
+      timeoutPromise,
+    ]);
+  } catch {
+    // Enrichment timeout or error should never delay or fail arrival results
+  } finally {
+    clearTimeout(timeoutId);
   }
 
-  const finalServices = parsedServices.map((s) => ({
-    service: s.service,
-    destination: s.destinationCode ? (busStopCache.get(s.destinationCode) || null) : null,
-    arrivals: s.arrivals,
-  }));
+  const finalServices = parsedServices.map((s) => {
+    const dest = s.destinationCode ? (busStopCache.get(s.destinationCode) || null) : null;
+    let loopDesc = null;
+    if (!dest) {
+      loopDesc = serviceLoopCache.get(s.service) || null;
+    }
+    return {
+      service: s.service,
+      destination: dest,
+      loopDescription: loopDesc,
+      arrivals: s.arrivals,
+    };
+  });
 
   const responseBody = {
     stop: data?.BusStopCode || stop,
