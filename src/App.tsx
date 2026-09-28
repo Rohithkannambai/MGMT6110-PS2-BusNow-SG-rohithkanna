@@ -9,6 +9,7 @@ import {Bus} from 'lucide-react';
 export default function App() {
   const [selectedStop, setSelectedStop] = useState<BusStop | null>(null);
   const [fetchState, setFetchState] = useState<FetchState>({status: 'idle'});
+  const [lastCheckedAt, setLastCheckedAt] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [isOutdatedWarning, setIsOutdatedWarning] = useState<boolean>(false);
 
@@ -80,6 +81,7 @@ export default function App() {
         const data = body as BusApiResponse;
         lastFetchedAtTimestampRef.current = Date.now();
         setIsOutdatedWarning(false);
+        setLastCheckedAt(new Date().toISOString());
 
         if (!data || !Array.isArray(data.services) || data.services.length === 0) {
           // EMPTY state: Successful LTA response with zero valid upcoming services or arrivals
@@ -143,6 +145,9 @@ export default function App() {
   }, []);
 
   const handleSelectStop = (stop: BusStop) => {
+    if (selectedStopRef.current?.code !== stop.code) {
+      setLastCheckedAt(null);
+    }
     setSelectedStop(stop);
     selectedStopRef.current = stop;
     setIsOutdatedWarning(false);
@@ -269,6 +274,7 @@ export default function App() {
         <ArrivalResults
           selectedStop={selectedStop}
           fetchState={fetchState}
+          lastCheckedAt={lastCheckedAt}
           isRefreshing={isRefreshing}
           isOutdatedWarning={isOutdatedWarning}
           onRefresh={handleRefresh}

@@ -6,6 +6,7 @@ import {RotateCw} from 'lucide-react';
 interface ArrivalResultsProps {
   selectedStop: BusStop | null;
   fetchState: FetchState;
+  lastCheckedAt?: string | null;
   isRefreshing?: boolean;
   isOutdatedWarning?: boolean;
   onRefresh: () => void;
@@ -14,6 +15,7 @@ interface ArrivalResultsProps {
 export const ArrivalResults: React.FC<ArrivalResultsProps> = ({
   selectedStop,
   fetchState,
+  lastCheckedAt,
   isRefreshing = false,
   isOutdatedWarning = false,
   onRefresh,
@@ -79,11 +81,11 @@ export const ArrivalResults: React.FC<ArrivalResultsProps> = ({
             <span className="text-[11.5px] font-mono text-[#64748B] font-medium tracking-wide">
               Stop {selectedStop.code}
             </span>
-            {fetchState.status === 'success' && (
+            {lastCheckedAt && (fetchState.status === 'success' || fetchState.status === 'empty') && (
               <>
                 <span className="text-stone-300 text-xs">·</span>
                 <span className="text-[11.5px] text-[#64748B]">
-                  Fetched at {formatFetchedTime(fetchState.data.fetchedAt)}
+                  Last checked at {formatFetchedTime(lastCheckedAt)}
                 </span>
               </>
             )}
