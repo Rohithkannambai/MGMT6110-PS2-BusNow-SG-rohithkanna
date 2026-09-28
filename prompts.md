@@ -16120,3 +16120,88 @@ Run the build and type checks and explain exactly what changed.
 2. **Code Audit Confirmation**:
    - Confirmed through code audit: `isExpanded` is preserved across quiet 30-second refreshes without collapsing, and selecting a different stop cleanly resets `isExpanded` to `false` via `useEffect`.
    - Accessible semantics confirmed: `aria-expanded={isExpanded}`, `aria-controls="services-list"`, and `.sr-only` descriptions (`", currently showing 5 of 17 services"` and `", showing all 17 services"`).
+
+---
+
+## 4. Refresh Timestamp Clarity Refinement
+
+### Live Observation After the Stale-Arrival Repair
+The 30-second refresh and manual refresh were working, but the visible `Fetched at` time could remain unchanged when Vercel returned a cached API response. This made a successful refresh appear unsuccessful to the visitor.
+
+### Diagnostic and Argue-First Prompt
+```text
+Before changing any code, inspect the current refresh behaviour.
+
+The refresh button and 30-second auto-refresh work, but the visible “Fetched at” time can stay unchanged because Vercel may return a cached response. This makes users think the refresh did not happen.
+
+I want the label changed to “Last checked at”. It should use the client time and update after every successful initial load, manual refresh, and visible-tab 30-second auto-refresh. If a refresh fails, keep the previous time and existing warning.
+
+Do not change the arrival countdown, API caching, backend, destinations, loop labels, show-more feature, or add cache-busting parameters.
+
+Explain the smallest safe correction, the exact files affected, and any possible regression. Stop before writing code.
+```
+
+### Agent Recommendation
+The agent identified that the backend-generated `fetchedAt` value is stored inside Vercel’s cached response. Therefore, a successful client request can receive the same earlier timestamp.
+
+The agent recommended separating the visible check time from the server payload by:
+- adding a client-side `lastCheckedAt` state;
+- updating it after every successful initial, manual or automatic request;
+- retaining the previous value when a refresh fails;
+- resetting it when the selected stop changes; and
+- changing the label from `Fetched at` to `Last checked at`.
+
+The agent also identified possible regressions involving cross-stop timestamp leakage, failed refreshes clearing the time, interference with the arrival countdown, and cache-busting requests increasing LTA traffic.
+
+### Human Decision
+I accepted the client-side check-time design because it accurately tells visitors when BUSNOW last checked the API without falsely claiming that Vercel obtained a new response directly from LTA. I rejected cache-busting parameters because they would bypass the shared edge cache and create unnecessary LTA requests.
+
+I also required `lastCheckedAt` to update only after the response passed the existing selected-stop check, preventing an older stop’s response from updating the current stop.
+
+### Implementation Prompt
+```text
+Proceed with the correction.
+
+Modify only src/App.tsx and src/components/ArrivalResults.tsx.
+
+Add lastCheckedAt client state. Update it only after a successful response has passed the existing selected-stop code check, at the same point the valid response data is committed. Reset it only when the user changes to a different stop.
+
+Pass it to ArrivalResults and display “Last checked at [time]” after the initial load and after every successful manual or 30-second automatic refresh. Show it in the no-upcoming-buses state too. Failed refreshes must keep the previous time.
+
+Do not change the API, caching, arrival countdown, destinations, loop labels, show-more behaviour, polling interval, or any unrelated feature.
+
+Run the type check and build, then report the exact files changed. Implement now.
+```
+
+### Human Code-Audit Correction
+After inspecting the generated files, I found that `setLastCheckedAt(null)` ran whenever any stop button was clicked, including the already selected stop. This did not exactly follow the requirement to reset the time only when changing stops.
+
+### Correction Prompt
+```text
+One small requirement was not implemented exactly.
+
+In handleSelectStop, setLastCheckedAt(null) currently runs whenever any stop button is clicked, including the already selected stop. Change it so lastCheckedAt is cleared only when the incoming stop code is different from selectedStopRef.current?.code. Perform this comparison before assigning the new stop to selectedStopRef.current.
+
+Do not change any other behaviour or file. Run the type check and build again, then report the exact change.
+```
+
+### Approved File Scope
+- `src/App.tsx`
+- `src/components/ArrivalResults.tsx`
+
+### Verification Results
+1. **Live Verification**:
+   - Pressing the manual refresh button updated the visible `Last checked at` time.
+   - The visible time updated again after approximately 30 seconds through the automatic refresh.
+   - The timetable remained visible without a full-screen loading flicker.
+2. **Code Audit Confirmation**:
+   - The arrival countdown remains independent and continues using `currentTime` with `formatArrival(arrivalIso, currentTime)`.
+   - No changes were made to the backend, Vercel caching, polling interval, API URL, destinations, loop labels or Show-more behaviour.
+   - `lastCheckedAt` is updated only after a successful response passes the selected-stop checks.
+   - Selecting a different stop clears the earlier check time, while clicking the currently selected stop does not clear it.
+3. **Build Verification**:
+   - Type check and linter passed with zero errors.
+   - Production build completed successfully.
+
+### Commit
+- `30dc967` — `Clarify refresh check time (H1, sev 3, raised by WK and T)`
