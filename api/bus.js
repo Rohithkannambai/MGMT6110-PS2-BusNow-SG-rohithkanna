@@ -4,6 +4,51 @@
  * Endpoint: /api/bus?stop=[SELECTED_STOP_CODE]
  */
 
+// In-memory cache for resolved bus stop descriptions
+const busStopCache = new Map();
+
+async function fetchBusStopsPage(skip, apiKey, signal) {
+  const url = `https://datamall2.mytransport.sg/ltaodataservice/BusStops?$skip=${skip}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      AccountKey: apiKey,
+    },
+    signal,
+  });
+  if (!response.ok) return [];
+  const json = await response.json();
+  return Array.isArray(json?.value) ? json.value : [];
+}
+
+async function resolveDestinations(neededCodes, apiKey, signal) {
+  const isMissing = () => neededCodes.some((c) => !busStopCache.has(c));
+  if (!isMissing()) return;
+
+  const skips = [0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000];
+  const batchSize = 3;
+
+  for (let i = 0; i < skips.length; i += batchSize) {
+    if (!isMissing()) break;
+    if (signal?.aborted) break;
+
+    const currentBatch = skips.slice(i, i + batchSize);
+    const results = await Promise.allSettled(
+      currentBatch.map((skip) => fetchBusStopsPage(skip, apiKey, signal))
+    );
+
+    for (const res of results) {
+      if (res.status === 'fulfilled' && Array.isArray(res.value)) {
+        for (const stop of res.value) {
+          if (stop?.BusStopCode && stop?.Description) {
+            busStopCache.set(String(stop.BusStopCode).trim(), String(stop.Description).trim());
+          }
+        }
+      }
+    }
+  }
+}
+
 export default async function handler(req, res) {
   // Extract stop query parameter from Vercel req.query or standard URL
   let stop = '';
@@ -97,16 +142,66 @@ export default async function handler(req, res) {
 
     // If a service contains zero valid arrival timestamps, omit that service
     if (arrivals.length > 0) {
+      // Take DestinationCode from the first available arriving bus (NextBus -> NextBus2 -> NextBus3)
+      let destinationCode = null;
+      const busCandidates = [item?.NextBus, item?.NextBus2, item?.NextBus3];
+      for (const bus of busCandidates) {
+        if (bus && typeof bus.EstimatedArrival === 'string' && bus.EstimatedArrival.trim().length > 0) {
+          if (bus.DestinationCode && String(bus.DestinationCode).trim().length > 0) {
+            destinationCode = String(bus.DestinationCode).trim();
+            break;
+          }
+        }
+      }
+      if (!destinationCode) {
+        for (const bus of busCandidates) {
+          if (bus && bus.DestinationCode && String(bus.DestinationCode).trim().length > 0) {
+            destinationCode = String(bus.DestinationCode).trim();
+            break;
+          }
+        }
+      }
+
       parsedServices.push({
         service: String(serviceNo),
+        destinationCode,
         arrivals,
       });
     }
   }
 
+  // Resolve unique destination codes server-side with ~1.2s timeout cap
+  const uniqueDestinationCodes = [
+    ...new Set(parsedServices.map((s) => s.destinationCode).filter(Boolean)),
+  ];
+
+  if (uniqueDestinationCodes.length > 0) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 1200);
+
+    try {
+      await Promise.race([
+        resolveDestinations(uniqueDestinationCodes, apiKey, controller.signal),
+        new Promise((resolve) => setTimeout(resolve, 1200)),
+      ]);
+    } catch {
+      // Resolution timeout or error should never delay or fail arrival results
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  const finalServices = parsedServices.map((s) => ({
+    service: s.service,
+    destination: s.destinationCode ? (busStopCache.get(s.destinationCode) || null) : null,
+    arrivals: s.arrivals,
+  }));
+
   const responseBody = {
     stop: data?.BusStopCode || stop,
-    services: parsedServices,
+    services: finalServices,
     fetchedAt: new Date().toISOString(),
   };
 

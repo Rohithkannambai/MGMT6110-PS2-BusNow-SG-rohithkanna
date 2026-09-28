@@ -10,6 +10,7 @@ export interface BusStop {
 
 export interface BusServiceArrival {
   service: string;
+  destination: string | null;
   arrivals: string[];
 }
 
